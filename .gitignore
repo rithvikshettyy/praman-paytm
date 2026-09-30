@@ -1,0 +1,29 @@
+# backend
+backend/.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+backend/data/index/
+*.db
+*.sqlite3
+
+# env
+.env
+.env.*
+!.env.example
+
+# frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# local store and kept originals
+backend/.local/

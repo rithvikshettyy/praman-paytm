@@ -1,0 +1,119 @@
+# Claim readiness for a health insurance claim (PRD-PAYTM N1).
+#
+# Answers one question before she files a claim: will this claim be rejected,
+# and if not, how much will be cut? Evaluated by app/core/ladder_engine.py.
+#
+# Per rule:
+#   facts        the facts the rule needs before it can decide (checked
+#                against what the rule reads when the file loads)
+#   message      plain-language text; {placeholders} are values the engine
+#                computed. :inr formats rupees, :date formats a date.
+#   message_pending   used when the rule fired but its calculation lacks a fact
+#   verified_by  UNVERIFIED until a named person checks the source. Unverified
+#                text is shown to the user with a badge.
+#
+# Rule order is the order messages are read out.
+
+id: insurance_health_claim
+title: Health insurance claim readiness
+product: health_policy
+verified_by: UNVERIFIED
+
+rules:
+  - id: waiting_period_unmet
+    kind: duration_unmet
+    value: months_held
+    limit: wait_months
+    calculation: claimable_from
+    facts: [months_held, wait_months]
+    message: >-
+      This treatment has a {limit}-month waiting period. Your policy is {value} months old.
+      You can claim from {claimable_from:date}.
+    message_pending: >-
+      This treatment has a {limit}-month waiting period. Your policy is {value} months old.
+      You can claim after {remaining} more months.
+    letter: >-
+      My policy is {value} months old and this treatment has a {limit}-month waiting period. Please confirm in writing the date from which it is covered.
+    verified_by: UNVERIFIED
+
+  - id: procedure_excluded
+    kind: flag_true
+    value: exclusion_listed
+    facts: [exclusion_listed]
+    message: Your policy does not cover this treatment at all.
+    letter: >-
+      Please confirm in writing whether this treatment is excluded under my policy, and quote the clause that excludes it.
+    verified_by: UNVERIFIED
+
+  - id: policy_lapsed
+    kind: flag_false
+    value: policy_in_force
+    facts: [policy_in_force]
+    message: The policy was not in force on the date of treatment.
+    letter: >-
+      Please confirm in writing whether my policy was in force on the date of treatment.
+    verified_by: UNVERIFIED
+
+  - id: room_cap_breach
+    kind: threshold_breach
+    effect: deduction
+    value: room_quoted_per_day
+    limit: room_cap_per_day
+    calculation: proportionate_deduction
+    facts: [room_quoted_per_day, room_cap_per_day]
+    message: >-
+      Your room costs more than the policy allows. About {deduction:inr} will be cut from room,
+      doctor and surgery charges. Medicines, tests and implants are not cut.
+    message_pending: >-
+      Your room costs more than the policy allows, so part of the room, doctor and surgery
+      charges will be cut. Medicines, tests and implants are not cut. The amount will be
+      calculated once the bill is shared.
+    letter: >-
+      Please confirm in writing how the room rent limit applies to this admission and which charges will be reduced.
+    verified_by: UNVERIFIED
+    source: >-
+      IRDAI guidance excluding pharmacy, consumables, implants, medical devices and
+      diagnostics from proportionate deduction. Circular and paragraph to be quoted (C5 item 1).
+
+  - id: documents_incomplete
+    kind: threshold_short
+    value: documents_collected
+    limit: documents_required
+    facts: [documents_collected, documents_required]
+    message: "Documents still missing: {shortfall} of {limit}."
+    letter: >-
+      Please confirm in writing which documents are still needed for this claim.
+    verified_by: UNVERIFIED
+
+  - id: ped_wait_exceeds_cap
+    kind: threshold_breach
+    effect: ground
+    value: ped_wait_months
+    limit: 36
+    facts: [ped_wait_months]
+    message: >-
+      Your policy lists a pre-existing disease waiting period of {value} months. The regulator
+      allows at most {limit} months. Ask the insurer to explain.
+    letter: >-
+      My policy lists a pre-existing disease waiting period of {value} months, longer than the {limit} months the regulator allows. Please explain this term in writing.
+    verified_by: UNVERIFIED
+    source: >-
+      IRDAI Master Circular on Health Insurance Business (2024), maximum pre-existing disease
+      waiting period. Paragraph to be quoted (C5 item 3).
+
+  - id: moratorium_reached
+    kind: duration_met
+    value: months_continuous_cover
+    limit: 60
+    when:
+      denial_reason: non_disclosure
+    facts: [denial_reason, months_continuous_cover]
+    message: >-
+      You have been covered without a break for {value} months. After {limit} months the
+      insurer cannot reject a claim for non-disclosure unless it proves fraud.
+    letter: >-
+      I have been continuously covered for {value} months. After {limit} months of continuous cover, a claim cannot be rejected for non-disclosure unless fraud is proved. Please review the rejection of my claim on this basis.
+    verified_by: UNVERIFIED
+    source: >-
+      IRDAI Master Circular on Health Insurance Business (2024), moratorium period.
+      Paragraph to be quoted (C5 item 2).

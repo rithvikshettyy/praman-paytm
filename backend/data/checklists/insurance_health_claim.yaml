@@ -1,0 +1,58 @@
+# Documents a health insurance claim needs (PRD-PAYTM N3).
+#
+# Slot order is the numbered list she picks from when a photo cannot be
+# placed, so do not reorder casually.
+#
+#   keywords  words the document itself prints; a photo's OCR text must hit
+#             at least two for one slot, more than any other slot, or she is
+#             asked to pick
+#   caption   words she might type with the photo; one clear match is enough
+#
+# Matching is case-insensitive. Latin keywords match whole words (plurals
+# allowed); keywords in other scripts match anywhere in the text.
+
+id: insurance_health_claim
+verified_by: UNVERIFIED
+source: >-
+  Common reimbursement claim document list. Confirm against the insurer's own claim form
+  before relying on it (PRD-PAYTM C5).
+
+slots:
+  - id: discharge_summary
+    label: Discharge summary
+    keywords: [discharge summary, discharge card, date of discharge, course in hospital, diagnosis,
+               condition at discharge, advice on discharge]
+    caption: [discharge, discharge summary, discharge card, डिस्चार्ज]
+
+  - id: final_bill
+    label: Final bill
+    keywords: [final bill, bill no, bill number, room charges, net amount, amount payable, gstin,
+               invoice, total amount]
+    caption: [bill, final bill, hospital bill, बिल]
+
+  - id: id_proof
+    label: ID proof
+    keywords: [aadhaar, aadhar, unique identification authority, government of india,
+               permanent account number, income tax department, election commission, elector,
+               driving licence, driving license, passport, dob, date of birth]
+    caption: [aadhaar, aadhar, pan, pan card, id, id proof, voter id, licence, license, passport,
+              आधार, पॅन, पैन]
+
+  - id: policy_copy
+    label: Policy copy
+    keywords: [policy schedule, policy number, sum insured, policy period, insured person, premium,
+               policy wording, period of insurance]
+    caption: [policy, पॉलिसी]
+
+  - id: prescriptions
+    label: Prescriptions
+    keywords: [prescription, rx, tab, cap, syrup, inj, once daily, twice daily, thrice daily,
+               after food, before food, mg]
+    caption: [prescription, rx, medicine, प्रिस्क्रिप्शन, औषध, दवा]
+
+  - id: claim_form
+    label: Claim form
+    keywords: [claim form, part a, part b, primary insured, details of hospitalisation,
+               details of hospitalization, declaration by the insured, signature of the insured,
+               claimant]
+    caption: [claim form, form, क्लेम, फॉर्म]

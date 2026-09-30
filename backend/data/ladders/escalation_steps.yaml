@@ -1,0 +1,74 @@
+# Steps on each respondent's ladder (PRD-PAYTM N5) and how long each has to answer.
+#
+# The order of steps per situation lives in app/core/routing.py (the N5
+# table). This file holds what a step is called in a draft and its response
+# window. respond_within_days is null where no window is known: no deadline is
+# claimed for that step. Every window is UNVERIFIED until a named person
+# quotes the source (PRD-PAYTM C5) and is shown to the user with a badge.
+
+verified_by: UNVERIFIED
+
+steps:
+  insurer_grievance_cell:
+    label: Grievance cell
+    respond_within_days: 14
+    verified_by: UNVERIFIED
+    source: >-
+      IRDAI (Protection of Policyholders' Interests) Regulations: insurer to resolve a grievance
+      within 14 days of receipt. Regulation and clause to be quoted.
+
+  irdai_grievance:
+    label: IRDAI grievance portal (Bima Bharosa)
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  insurance_ombudsman:
+    label: Insurance Ombudsman
+    respond_within_days: null
+    verified_by: UNVERIFIED
+    source: >-
+      Insurance Ombudsman Rules, 2017: complaint possible after the insurer rejects the grievance
+      or does not reply within one month. Rule to be quoted.
+
+  insurer_claims_desk:
+    label: Claims desk
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  answered_in_chat:
+    label: Answered from her policy in chat
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  coverage_query:
+    label: Coverage query to the insurer
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  distributor_grievance:
+    label: Grievance officer
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  distributor_support_ticket:
+    label: Customer support
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  lender_grievance:
+    label: Grievance redressal officer
+    respond_within_days: 30
+    verified_by: UNVERIFIED
+    source: >-
+      RBI Integrated Ombudsman Scheme: a complaint may go to the RBI Ombudsman if the regulated
+      entity does not reply within 30 days. Check against the 2026 scheme and quote the clause.
+
+  lender_nodal_officer:
+    label: Principal nodal officer
+    respond_within_days: null
+    verified_by: UNVERIFIED
+
+  rbi_ombudsman:
+    label: RBI Ombudsman (CMS portal)
+    respond_within_days: null
+    verified_by: UNVERIFIED

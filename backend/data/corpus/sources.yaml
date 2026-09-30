@@ -1,0 +1,26 @@
+# Every document the RAG index may answer from. A file not listed here is never ingested.
+#
+#   file            path under backend/data/corpus/, in its layer folder:
+#                     regulation/...                    regulator circulars, rules, FAQs
+#                     insurer/<insurer>/<product>/...   one insurer's documents for one product
+#                     paytm/...                         the distributor's own terms and policies
+#   layer           regulation | insurer | paytm (must match the top folder)
+#   insurer         insurer layer only: the name answers cite, and retrieval filters on
+#   product         insurer layer only: health_policy | merchant_loan | motor_policy
+#   doc_type        e.g. policy_wording, policy_schedule, circular, faq
+#   source_url      where the original can be checked
+#   effective_date  YYYY-MM-DD
+#   verified_by     UNVERIFIED until a named person checks the file against the original.
+#                   Answers citing an UNVERIFIED source carry the "unverified" badge.
+#
+# After editing: python -m app.rag.ingest   (only changed files are re-ingested)
+
+sources:
+  - file: insurer/example_general/health_policy/policy_wording.md
+    layer: insurer
+    insurer: Example General Insurance
+    product: health_policy
+    doc_type: policy_wording
+    source_url: ""
+    effective_date: 2026-04-01
+    verified_by: UNVERIFIED

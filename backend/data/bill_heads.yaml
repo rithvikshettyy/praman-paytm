@@ -1,0 +1,63 @@
+# Which hospital bill lines a room-cap (proportionate) deduction may touch.
+#
+#   deductible  room, nursing, doctor and surgery charges: reduced in proportion
+#               when the room costs more than the policy's room cap
+#   exempt      pharmacy, consumables, implants, medical devices, diagnostics:
+#               never reduced
+#
+# A line is placed by keyword (whole words, case-insensitive, plural allowed).
+# A line that matches no keyword, or keywords from both heads, is asked, not
+# guessed. Used by app/services/documents.py; the sums happen in the engine.
+
+verified_by: UNVERIFIED
+source: >-
+  IRDAI guidance excluding pharmacy, consumables, implants, medical devices and diagnostics
+  from proportionate deduction. Circular and paragraph to be quoted (PRD-PAYTM C5 item 1).
+
+deductible:
+  - room
+  - room rent
+  - bed charge
+  - boarding
+  - nursing
+  - doctor
+  - consultant
+  - consultation
+  - visit
+  - surgeon
+  - surgery
+  - surgical
+  - anaesthetist
+  - anesthetist
+  - anaesthesia
+  - anesthesia
+  - operation theatre
+  - operation theater
+  - ot charge
+  - professional fee
+  - procedure charge
+
+exempt:
+  - pharmacy
+  - medicine
+  - drug
+  - consumable
+  - disposable
+  - implant
+  - stent
+  - intraocular lens
+  - device
+  - pacemaker
+  - diagnostic
+  - investigation
+  - laboratory
+  - lab
+  - pathology
+  - radiology
+  - x-ray
+  - xray
+  - scan
+  - mri
+  - ultrasound
+  - ecg
+  - blood test

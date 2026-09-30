@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* Praman: paper, ink and one pine green. Red and amber are reserved for what they mean:
+   red stamps a claim that should not be filed yet, amber marks a cut or an unverified source. */
+@theme {
+  --color-paper: #f6f7f4;
+  --color-ink: #1c2724;
+  --color-muted: #5a6763;
+  --color-line: #d8ddd9;
+  --color-pine: #1e5b4c;
+  --color-pine-dark: #164537;
+  --color-pine-wash: #e5efea;
+  --color-stamp: #a8321f;
+  --color-stamp-wash: #f8e8e4;
+  --color-amber: #9a5f0c;
+  --color-amber-wash: #f8eedc;
+}
+
+@theme inline {
+  --font-sans: var(--font-anek-latin), var(--font-anek-devanagari), var(--font-anek-tamil),
+    var(--font-anek-bangla), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  font-feature-settings: "tnum" 1;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-pine);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

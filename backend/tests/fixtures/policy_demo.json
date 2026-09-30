@@ -1,0 +1,36 @@
+{
+  "example": "Example case for the demo. Not a real policy, insurer or person.",
+  "doc_type": "policy",
+  "fields": {
+    "insurer": "Example General Insurance Company Ltd",
+    "policy_number": "EXAMPLE-HP-0001",
+    "policy_start_date": "2019-04-01",
+    "continuous_cover_start": null,
+    "sum_insured": 500000,
+    "room_rent_limit_amount": null,
+    "room_rent_limit_percent": 1,
+    "co_pay_percent": 0,
+    "specified_disease_wait_months": 24,
+    "ped_wait_months": 36,
+    "named_exclusions": [
+      "Cosmetic or plastic surgery",
+      "Dental treatment unless caused by an accident",
+      "Infertility treatment"
+    ],
+    "network_status": "Cashless at network hospitals"
+  },
+  "confidence": {
+    "insurer": 0.97,
+    "policy_number": 0.95,
+    "policy_start_date": 0.94,
+    "continuous_cover_start": 0,
+    "sum_insured": 0.96,
+    "room_rent_limit_amount": 0,
+    "room_rent_limit_percent": 0.93,
+    "co_pay_percent": 0.9,
+    "specified_disease_wait_months": 0.92,
+    "ped_wait_months": 0.93,
+    "named_exclusions": 0.9,
+    "network_status": 0.88
+  }
+}

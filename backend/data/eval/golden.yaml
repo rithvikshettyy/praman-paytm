@@ -1,0 +1,52 @@
+# Golden questions for the RAG eval: python -m app.rag.eval
+#
+#   expect        answer | no_source
+#   must_contain  phrases the English answer must include (case-insensitive)
+#   cite          the doc_type and page at least one citation must point to
+#
+# Seeded against the example policy wording in corpus/insurer/example_general/.
+# Add real questions as real documents are added to the corpus.
+
+examples:
+  - id: room_rent_limit
+    question: What is the room rent limit in my policy?
+    language: en-IN
+    insurer: Example General Insurance
+    product: health_policy
+    expect: answer
+    must_contain: ["1%"]
+    cite: {doc_type: policy_wording, page: 1}
+
+  - id: pre_existing_wait
+    question: When are my pre-existing diseases covered?
+    language: en-IN
+    insurer: Example General Insurance
+    product: health_policy
+    expect: answer
+    must_contain: ["36 months"]
+    cite: {doc_type: policy_wording, page: 2}
+
+  - id: cataract_wait
+    question: Is cataract surgery covered, and after how long?
+    language: en-IN
+    insurer: Example General Insurance
+    product: health_policy
+    expect: answer
+    must_contain: ["24 months"]
+    cite: {doc_type: policy_wording, page: 2}
+
+  - id: emergency_intimation_marathi
+    question: आपत्कालीन दाखल झाल्यावर विमा कंपनीला किती वेळात कळवावे लागते?
+    language: mr-IN
+    insurer: Example General Insurance
+    product: health_policy
+    expect: answer
+    must_contain: ["24 hours"]
+    cite: {doc_type: policy_wording, page: 3}
+
+  - id: settlement_ratio
+    question: What is my insurer's claim settlement ratio?
+    language: en-IN
+    insurer: Example General Insurance
+    product: health_policy
+    expect: no_source

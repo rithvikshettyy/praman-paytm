@@ -1,0 +1,11 @@
+fastapi>=0.119
+uvicorn[standard]>=0.38
+python-dotenv==1.2.2
+sarvamai==0.1.30
+tenacity==9.1.4
+pypdf==6.15.0
+httpx>=0.28
+PyYAML==6.0.3
+python-multipart==0.0.32
+pymupdf==1.28.2
+chromadb==1.5.9

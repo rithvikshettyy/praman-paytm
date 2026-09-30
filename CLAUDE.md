@@ -1,0 +1,84 @@
+# CLAUDE.md
+
+Standing rules for this repo. Read PRD-PAYTM.md before any feature work. There is no PRD.md; ignore references to it.
+
+## Layout
+- `backend/`: Python API, engine, data, tests, scripts.
+- `frontend/`: Next.js site. Calls the backend API only. No business logic, no rule checks, no money maths.
+- PRD paths like `haq/...` mean `backend/app/...`; `data/...` and `tests/...` mean `backend/data/...` and `backend/tests/...`. See Module map.
+
+## Module map
+State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (`github.com/rithvikshettyy/praman` @ `e2a8360`, loan-document product, Flask). Kept: Sarvam client, config, Doc AI intake pipeline, block normaliser, translation cache. Left behind: loan rules/reports/EMI/FOIR/news, Clerk auth, Supabase store, Twilio notebook. PRD C1-C7, N1, N2, N3, N5, N6, N8 (backend) done, plus RAG for coverage questions and the demo web front end; C5 values still UNVERIFIED pending hand checks. Not a git repo. 662 tests. File names follow the PRD so its references stay greppable. Update a row when its file lands. Resolve data paths from the package (`config.BACKEND_DIR` / `DATA_DIR` / `LADDERS_DIR`), never the working directory.
+
+| Role | PRD path | Here now | Path |
+|---|---|---|---|
+| Backend config: `pyproject.toml` (pytest: `testpaths`, `pythonpath`), `requirements.txt`, `requirements-dev.txt`, `.env.example` | not named | exists | `backend/` |
+| Settings: env loaded from `backend/.env`, Sarvam models, Doc AI limits, languages, data paths | not named | exists (ported) | `backend/app/config.py` |
+| Sarvam client: chat, `chat_json` + `parse_json_loose`, Doc AI digitise/extract/status/results, translate, language ID, speech-to-text, text-to-speech. Only module that imports `sarvamai` | not named | exists (ported verbatim) | `backend/app/clients/sarvam.py` |
+| Rule engine: `Facts` (C2 + `treatment_on`), `Rule` (6 kinds incl. `flag_true`, optional `when`, optional `calculation`), `CALCULATIONS` (`proportionate_deduction`, `claimable_from`), `evaluate` -> `Verdict` (`file`, `do_not_file_yet` + `possible_on`, `file_with_known_deduction`, `facts_pending`, `no_verdict`; `next_action` = `COVERAGE_QUERY` on a block), `rule_facts()`. All money/date arithmetic here. Purity enforced by an AST test | `haq/core/ladder_engine.py` | exists (C2, C4, N1) | `backend/app/core/ladder_engine.py` |
+| Ladder loader: YAML -> `Ladder` (`rules`, `rule_facts` = RULE_FACTS, `entries`), strict validation at load, `explain()` renders messages with `verified_by` badges, `inr()` Indian rupee format | not named | exists (N1) | `backend/app/core/ladders.py` |
+| Classifier: `CLASSIFY_PROMPT`, `INTENTS`, `GRIEVANCE_CLASSES`, `PRODUCTS`, `classify`, `normalise` (LLM calls live here, never in the engine) | `haq/core/agent.py` | exists (C1). Fact key map (facts from free text) not built | `backend/app/core/agent.py` |
+| Document extraction pipeline: `validate_upload`, `split_into_batches`, `submit`, `collect`, `coerce_numbers`. Stores nothing; the original file is not kept | `haq/services/documents.py` | exists (ported, persistence removed) | `backend/app/services/documents.py` |
+| Document extraction per type (C3, N2): `FIELD_SPECS` -> `EXTRACT_SCHEMAS` / `FACT_MAPS` (letter, policy, bill, kfs), `detect_doc_type` (keywords, no model), `normalise_fields` (typed values + confidence, numbers checked against the text), `review` (confidence gate; bill lines -> heads), `extract` (live or `USE_DOC_FIXTURES`) | `haq/services/documents.py` | exists | same file |
+| Bill head map: line-item keyword -> deductible or exempt; unmapped or ambiguous lines are asked | `data/bill_heads.yaml` | exists (UNVERIFIED) | `backend/data/bill_heads.yaml` |
+| Demo fixtures for extraction (labelled example case), served when `USE_DOC_FIXTURES=true` | "fixture policy and fixture bill" | exists | `backend/tests/fixtures/policy_demo.json`, `bill_demo.json` |
+| Block normaliser: Doc AI pages to addressable blocks, text, markdown | not named | exists (ported) | `backend/app/services/blocks.py` |
+| Translation of dynamic text, cached; language detection | not named | exists (ported) | `backend/app/services/i18n.py` |
+| WhatsApp channel (Twilio): signed webhook -> background `process`; Twilio I/O only (`parse_inbound`, `send`, `download_media`, `deliver` with badge and voice note). The conversation itself is `app/conversation.py` | `haq/channels/whatsapp.py` | exists (N3, N6) | `backend/app/channels/whatsapp.py` |
+| Conversation, shared by WhatsApp and the web chat: delete everything, consent before reading, photos -> checklist, numbered-list fallback, then classify (C1): question -> RAG answer with citations, grievance -> N5 route named, pre_decision -> ask for the document; else checklist status | not named | exists | `backend/app/conversation.py` |
+| Store / DB schema: `cases`, `events`, `documents`, `consents`, `console_cases` view. Retention: fields kept, original only with `keep_original` consent | `haq/store.py` | exists: `cases` (routing columns via `MIGRATIONS`), `documents`, `consents`, `events` (`EVENT_KINDS`, `record_event`, `latest_event`), `console_cases` view (latest route / verdict / clock per case, read from events) | `backend/app/store.py` |
+| Distributor Console reads (N8): `case_list(filter)` (needs_paytm / routed_away), `metrics()` (headline + six counters). Every number from event rows | not named | exists (backend; UI is Step 9) | `backend/app/console.py` |
+| Cases: checklist (N3: `load_checklist`, `classify_slot`, `attach`, `choose_slot`, `checklist_state`, `checklist_facts` -> documents_incomplete, messages); routing glue (N5: `respondent_names` from confident document fields + `DISTRIBUTOR_LEGAL_NAME`, `route_case` stores the route on the case) | `cases.py` (folder not stated) | exists (N3, N5) | `backend/app/cases.py` |
+| Respondent router (N5): the N5 table as data, pure `route(product, grievance_class, names)` -> `Route` (respondent, respondent_name, distributor_owned, ladder, steps, first_step); `start_clock` on that respondent's own ladder. Purity enforced by an AST test | not named | exists (N5) | `backend/app/core/routing.py` |
+| Escalation steps: label and response window per step, each `verified_by` | "a verified_by line in the YAML" | exists (all UNVERIFIED; windows only where a source is named) | `backend/data/ladders/escalation_steps.yaml` |
+| Verification report (C5): every UNVERIFIED value in `data/` with file:line, values and source; MISSING `verified_by` fails. Run `python scripts/verify_report.py [--strict]` from `backend/` | not named | exists | `backend/scripts/verify_report.py` |
+| RAG for intent=question (separate from the engine): `index.py` (Chroma at `data/index`, one collection per embedding kind; `default` MiniLM or offline `hashing`), `ingest.py` (sources.yaml -> PyMuPDF pages -> clause chunks, 2500/300 fallback -> upsert by `<file>#p<page>#c<n>`, hash-based re-ingest), `retrieve.py` (her insurer+product OR regulation, top 6), `answer.py` (sources only, `[insurer, doc_type, p.X]`, NO_SOURCE -> N5 handoff, promise sentences dropped, amounts/citations protected through translation), `eval.py` | not named | exists; not wired into WhatsApp or the API yet | `backend/app/rag/` |
+| RAG corpus and eval: `corpus/{regulation, insurer/<insurer>/<product>, paytm}/`, `corpus/sources.yaml` (every file, with verified_by), `eval/golden.yaml` (5 examples, one NO_SOURCE). Ships one labelled example policy wording only | not named | exists | `backend/data/corpus/`, `backend/data/eval/` |
+| Claim checklist: six slots in numbered order, OCR keywords, caption words (incl. Marathi/Hindi) | not named | exists (UNVERIFIED) | `backend/data/checklists/insurance_health_claim.yaml` |
+| HTTP API, thin routes only. Run: `uvicorn app.main:app` from `backend/`. CORS: `CORS_ORIGINS` only (frontend dev origin) | not named | health, readiness (+ `/documents`), checklist, consent, case (detail, draft, approve, delete), console, metrics, session, chat, voice, policies, WhatsApp webhook, media. Missing: `/api/documents/*` (readiness takes files directly) | `backend/app/main.py` |
+| Readiness for the web: verdict view, open questions for missing facts (required vs optional), deduction breakdown, per-document summaries with bill heads | not named | exists | `backend/app/readiness.py` |
+| Demo seed and reset: exactly the Part 9 cases (demo-admission -> file with known deduction from the policy and bill fixtures; demo-moratorium -> moratorium ground + unapproved draft to the insurer by name; demo-double-debit -> distributor), all `is_example`. `reset_demo.py` wipes the whole store (`store.wipe_all`) and re-seeds in about a second | "pre-seeded" (Part 9) | exists | `backend/scripts/seed_demo.py`, `backend/scripts/reset_demo.py` |
+| Drafts: `addressee` (legal name or refused), `compose` (escalation or coverage query from the latest route and readiness facts, first-person `letter` lines from the ladder YAML, read back in her language), `approve` -> "Approved and ready to send" (nothing is sent) | not named | exists | `backend/app/services/drafts.py` |
+| Redaction (N6): Aadhaar, PAN, account numbers (9-18 digits), policy/claim numbers masked in every text sent to Sarvam (chat, translate, language ID, TTS). Photos to Doc AI cannot be masked; consent covers them | not named | exists | `backend/app/services/redact.py` (applied in `clients/sarvam.py`) |
+| Voice: TTS (mp3) held in memory and served at `/media/<token>.mp3` for WhatsApp and the web chat; STT for `/api/voice` | not named | exists | `backend/app/services/voice.py`, `backend/app/clients/sarvam.py` |
+| Deadlines / clocks (N7, post-hackathon) | "existing deadline machinery" | missing | `backend/app/core/deadlines.py` |
+| Ladders | `data/ladders/*.yaml` | `insurance_health_claim.yaml` exists (N1, 7 rules, all UNVERIFIED); motor, lending, RBI missing | `backend/data/ladders/` |
+| Statutes | `data/statutes.json` | missing | `backend/data/statutes.json` |
+| Demo fixtures: pre-seeded cases (e.g. the six-year non-disclosure denial), each labelled as an example case | not named | missing | `backend/data/fixtures/` |
+| Tests. Run: `python -m pytest` from `backend/`. Sarvam and Twilio are faked; RAG uses offline hashing embeddings; no test touches the network | `tests/` | 662 tests, all pass | `backend/tests/` |
+| Frontend (Step 9): Next.js 16 App Router + TS + Tailwind v4. Pages `/`, `/policies`, `/readiness`, `/checklist/[caseId]`, `/case/[caseId]`, `/console`; chat widget on every page; consent modal before uploads. Display only; `lib/api.ts` is the single backend client | not named | exists; `npm run lint` and `npm run build` pass | `frontend/` |
+
+## Engine
+- `backend/app/core/ladder_engine.py` is pure: no network, no LLM, no randomness, no I/O.
+- `Facts` fields default to `None`. A missing fact blocks a verdict; never default to the permissive answer.
+- All money and date arithmetic lives in the engine, never in prompts or the frontend.
+- No rule ships without three tests: blocked, clear, missing fact.
+
+## Data and honesty
+- Every legal or regulatory value in `backend/data/` carries `verified_by`. Unverified stays `UNVERIFIED` and is shown to the user with a badge.
+- Never say "filed" or "submitted" for something only drafted and approved in our DB. Use "approved and ready to send".
+- No invented statistics, savings figures, rejection rates or adoption numbers in code, UI or seed data. Seed data is labelled as an example case.
+- Never use the sponsor's name or logo in the product name or UI branding.
+
+## RAG
+- RAG serves coverage questions only and never writes to `Facts`.
+- Any number RAG surfaces goes through the confidence gate and user confirmation.
+- `backend/app/rag/` never imports the engine, store, documents or cases, and the engine never imports RAG (tested).
+- Every corpus file is listed in `data/corpus/sources.yaml` with `verified_by`; answers citing an UNVERIFIED source carry the badge.
+- An answer without a valid citation is NO_SOURCE. Never let RAG promise approval or payment.
+
+## Privacy
+- No document is read (OCR or extraction) without the case's `read_documents` consent.
+- All outbound text to Sarvam goes through `redact()`; add new egress points there, never around it.
+- Keep extracted fields, discard original documents unless the user consents to keep them.
+- Redact account numbers, Aadhaar, PAN and policy numbers before text leaves the process.
+- "Delete everything" must actually delete, including from the console.
+
+## Architecture
+- Anything the Distributor Console counts must write an event (`store.record_event`); the console reads events only.
+- One backend process, adapters at the edge, thin endpoints over plain functions.
+- All inference goes through `backend/app/clients/sarvam.py`. No other module imports `sarvamai`, and the key never reaches the frontend.
+
+## Workflow
+- Run the full backend test suite before and after every change; report the count.
+- Prefer small, reviewable diffs. Do not refactor outside the task.

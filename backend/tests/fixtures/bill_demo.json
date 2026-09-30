@@ -1,0 +1,30 @@
+{
+  "example": "Example case for the demo. Not a real bill, hospital or person.",
+  "doc_type": "bill",
+  "fields": {
+    "hospital_name": "Example Multispeciality Hospital",
+    "admission_date": "2026-10-05",
+    "discharge_date": "2026-10-08",
+    "room_rent_per_day": 8000,
+    "line_items": [
+      {"description": "Room rent (3 days)", "amount": 24000},
+      {"description": "Nursing charges", "amount": 6000},
+      {"description": "Surgeon fees", "amount": 40000},
+      {"description": "Anaesthetist fees", "amount": 10000},
+      {"description": "Operation theatre charges", "amount": 15000},
+      {"description": "Pharmacy", "amount": 18000},
+      {"description": "Consumables", "amount": 7000},
+      {"description": "Laboratory investigations", "amount": 8000},
+      {"description": "Radiology", "amount": 4000}
+    ],
+    "bill_total": 132000
+  },
+  "confidence": {
+    "hospital_name": 0.96,
+    "admission_date": 0.95,
+    "discharge_date": 0.95,
+    "room_rent_per_day": 0.94,
+    "line_items": 0.92,
+    "bill_total": 0.96
+  }
+}
