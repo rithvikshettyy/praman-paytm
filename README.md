@@ -14,7 +14,7 @@
 |---|---|
 | Event | Paytm Build for India hackathon, Mumbai edition |
 | Track | AI-Powered Financial Journeys |
-| Team | Hack_Overflow |
+| Team | HackOverFlow: Rithvik Shetty, Vinay Pokharkar |
 | Build window | 8 hours |
 | Deliverable | One live demo, one repo, one video or deck |
 
