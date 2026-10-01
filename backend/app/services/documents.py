@@ -411,10 +411,13 @@ FIELD_SPECS: dict[str, tuple[FieldSpec, ...]] = {
            fact="ped_wait_months"),
         _F("named_exclusions", "string_list", "Treatments or conditions the policy lists as permanently excluded"),
         _F("network_status", "string", "What the policy says about cashless treatment at network hospitals"),
+        _F("insured_names", "string_list", "Full name of every person insured under the policy, exactly as printed"),
+        _F("period_end_date", "date", "Date the current policy period ends (the expiry or renewal date)"),
     ),
     # A hospital bill; line items are grouped into heads by data/bill_heads.yaml.
     "bill": (
         _F("hospital_name", "string", "Name of the hospital that issued the bill"),
+        _F("patient_name", "string", "Full name of the patient, exactly as printed on the bill"),
         _F("admission_date", "date", "Date of admission", fact="treatment_on"),
         _F("discharge_date", "date", "Date of discharge"),
         _F("room_rent_per_day", "number", "Room rent charged per day in Indian rupees, digits only",
@@ -776,6 +779,13 @@ def review(
             facts["bill_exempt_heads"] = totals["exempt"]
 
     return Review(facts, tuple(to_confirm), tuple(missing), unmapped)
+
+
+def trusted_values(fields: dict[str, Field], gate: float | None = None) -> dict[str, Any]:
+    """Every field read with confidence that clears the gate: what the paper checks may compare.
+    Anything below the gate is left out, so a misread name or date is never flagged as a mismatch."""
+    gate = config.CONFIDENCE_GATE if gate is None else gate
+    return {name: f.value for name, f in fields.items() if f.value is not None and f.confidence >= gate}
 
 
 # --- Extraction end to end ---------------------------------------------------

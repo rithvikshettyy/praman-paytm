@@ -43,6 +43,11 @@ def test_admission_case_files_with_a_known_deduction(conn):
     assert (routed["respondent"], routed["distributor_owned"]) == ("insurer", False)
 
 
+def test_admission_case_catches_the_name_slip_before_filing(conn):
+    assert latest(conn, ADMISSION, "papers_checked") == {"fix": ["name_mismatch"], "heads_up": ["non_payable_items"]}
+    assert console.metrics(conn)["counters"]["insurer_queries_caught"] == 1
+
+
 def test_moratorium_case_has_the_ground_and_a_draft_to_the_insurer_by_name(conn):
     facts = cases.facts_from_json(latest(conn, MORATORIUM, "readiness_checked")["facts"])
     assert facts.months_continuous_cover == 72  # six years

@@ -17,7 +17,12 @@
       "Dental treatment unless caused by an accident",
       "Infertility treatment"
     ],
-    "network_status": "Cashless at network hospitals"
+    "network_status": "Cashless at network hospitals",
+    "insured_names": [
+      "Ramesh Shankar Patil",
+      "Sunita Ramesh Patil"
+    ],
+    "period_end_date": "2027-03-31"
   },
   "confidence": {
     "insurer": 0.97,
@@ -31,6 +36,8 @@
     "specified_disease_wait_months": 0.92,
     "ped_wait_months": 0.93,
     "named_exclusions": 0.9,
-    "network_status": 0.88
+    "network_status": 0.88,
+    "insured_names": 0.94,
+    "period_end_date": 0.95
   }
 }

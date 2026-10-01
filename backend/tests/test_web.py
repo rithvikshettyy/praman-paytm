@@ -402,7 +402,7 @@ def test_demo_files_give_a_verdict_and_ask_what_the_documents_do_not_say():
     required = {q["fact"] for q in body["questions"] if q["required"]}
     assert {"wait_months", "exclusion_listed", "policy_in_force", "documents_collected"} <= required
     heads = body["documents"]["bill"]["heads"]
-    assert heads["deductible_total"] == 95000 and heads["exempt_total"] == 37000
+    assert heads["deductible_total"] == 95000 and heads["exempt_total"] == 38850
     assert heads["unmapped"] == []
 
 
@@ -415,8 +415,8 @@ def test_answering_the_questions_gives_a_known_deduction():
     assert result["outcome"] == "file_with_known_deduction"
     assert result["breakdown"] == {
         "room_cap_per_day": 5000.0, "room_quoted_per_day": 8000.0, "ratio": 0.625,
-        "deductible_heads": 95000.0, "exempt_heads": 37000.0, "deduction": 35625,
-        "payable_estimate": 96375, "pending": False,
+        "deductible_heads": 95000.0, "exempt_heads": 38850.0, "deduction": 35625,
+        "payable_estimate": 98225, "pending": False,
     }
     assert any("About ₹35,625 will be cut" in m["text"] for m in result["messages"])
     assert [q for q in result["questions"] if q["required"]] == []

@@ -86,13 +86,16 @@ _OUTCOME = re.compile(
 )
 _HER = re.compile(r"\b(?:you|your)\b", re.IGNORECASE)
 _CITATION = r"\[[^\[\]]+, [^\[\]]+, p\.\d+\]"
-_BROKEN_TOKEN = re.compile(r"ZQ\d*|\d+ZQ")  # what is left of a placeholder the translator mangled
+# What is left of a placeholder the translator mangled. [[0]] was chosen because Sarvam keeps it
+# whole in every language tried; the earlier ZQ0ZQ was spelled out in Devanagari (झेडक्यू0).
+_BROKEN_TOKEN = re.compile(r"\[\[|\]\]")
 _REPEATED_LABEL = re.compile(r"(" + _CITATION + r")(?:\s*\1)+")
 _PROTECT = re.compile(
     _CITATION  # citations
     + r"|(?:₹|Rs\.?\s?|INR\s?)\d[\d,]*(?:\.\d+)?"  # rupee amounts
     r"|\d[\d,]*(?:\.\d+)?\s?(?:%|per cent|percent)"  # percentages
-    r"|\d[\d,]*(?:\.\d+)?\s(?:months?|days?|years?|hours?|lakhs?|crores?)\b"  # periods and sums
+    # periods and sums: the number is kept, the unit is translated ("24 hours" -> "24 तास")
+    r"|\d[\d,]*(?:\.\d+)?(?=\s(?:months?|days?|years?|hours?|lakhs?|crores?)\b)"
 )
 
 
@@ -116,7 +119,7 @@ def _protect(text: str, literals: tuple[str, ...] = ()) -> tuple[str, dict[str, 
     tokens: dict[str, str] = {}
 
     def keep(value: str) -> str:
-        token = f"ZQ{len(tokens)}ZQ"
+        token = f"[[{len(tokens)}]]"
         tokens[token] = value
         return token
 

@@ -1,0 +1,86 @@
+# Checks across her policy and hospital bill that catch what an insurer would query before
+# she files: a patient name that matches no one on the policy, an admission outside the policy,
+# dates out of order, a total that does not add up, items insurers usually do not pay.
+#
+# The comparisons run in the engine (app/core/ladder_engine.py, check_papers); this file holds
+# the words she reads. Placeholders are filled by app/readiness.py: names as printed, dates as
+# "5 Oct 2026", amounts in rupees. Only the non-payable list is a regulatory value, so only it
+# carries verified_by.
+
+checks:
+  patient_named_on_policy:
+    label: Patient name matches the policy
+    needs: the patient's name on the bill and the names insured on the policy
+  admission_in_policy_period:
+    label: Admission date is inside the policy period
+    needs: the admission date on the bill and the policy's start and end dates
+  discharge_after_admission:
+    label: Discharge comes after admission
+    needs: the admission and discharge dates on the bill
+  bill_adds_up:
+    label: Bill total matches its lines
+    needs: the bill total and the amount on every line
+  non_payable_items:
+    label: Items insurers usually do not pay
+    needs: the bill's line items
+
+problems:
+  name_mismatch:
+    severity: fix
+    message: >-
+      The patient on the bill, {patient}, does not match anyone named on the policy ({insured}).
+      Insurers raise a query when names differ. Ask the hospital to correct the name on the bill,
+      or keep an ID that shows it is the same person, before you file.
+  admission_before_policy:
+    severity: fix
+    message: >-
+      The admission date, {admission}, is before the policy started on {start}. Check the dates
+      on the bill before you file.
+  admission_after_policy:
+    severity: fix
+    message: >-
+      The admission date, {admission}, is after the policy period ended on {end}. Check that the
+      policy was renewed in time, and keep the renewal receipt with your claim.
+  discharge_before_admission:
+    severity: fix
+    message: >-
+      The bill shows discharge on {discharge}, before admission on {admission}. Ask the hospital
+      to correct the dates before you file.
+  bill_total_mismatch:
+    severity: fix
+    message: >-
+      The bill's lines add up to {lines_total}, but its total says {bill_total}. Ask the hospital
+      for a corrected bill; insurers query totals that do not add up.
+  non_payable_items:
+    severity: heads_up
+    message: >-
+      These items are usually not paid by insurers: {items}. That is {amount} in all. Expect to
+      pay these yourself, and ask the hospital to remove anything that was not used.
+
+non_payable:
+  verified_by: UNVERIFIED
+  source: >-
+    IRDAI Guidelines on Standardization in Health Insurance, annexure listing items not payable
+    or subsumed into room, procedure or treatment costs (gloves, masks, admission kits, toiletries
+    and similar). Guideline, annexure and list to be quoted (PRD-PAYTM C5).
+  items:
+    - glove
+    - mask
+    - admission kit
+    - attendant charge
+    - attendant food
+    - toiletry
+    - diaper
+    - telephone
+    - television
+    - laundry
+    - courier
+    - mineral water
+    - file opening
+    - registration charge
+    - documentation charge
+    - medical record
+    - photocopy
+    - thermometer
+    - nebulizer kit
+    - crepe bandage

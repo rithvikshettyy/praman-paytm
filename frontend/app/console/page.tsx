@@ -26,6 +26,7 @@ export default function ConsolePage() {
         { label: "Coverage questions drafted", value: c.coverage_queries_drafted },
         { label: "Escalations drafted", value: c.escalations_drafted },
         { label: `Cases routed away from ${distributor}`, value: c.cases_routed_away },
+        { label: "Insurer queries caught before filing", value: c.insurer_queries_caught },
       ]
     : [];
 

@@ -476,3 +476,174 @@ def evaluate(facts: Facts, rules) -> Verdict:
         respondent=facts.respondent,
         distributor_owned=facts.distributor_owned,
     )
+
+
+# --- Claim papers: what an insurer would query -----------------------------------
+# Cross-checks between her policy and hospital bill. A mismatch is not a coverage
+# block: it is the query letter that would delay her claim, caught before she files.
+
+PAPER_CHECKS = (
+    "patient_named_on_policy",
+    "admission_in_policy_period",
+    "discharge_after_admission",
+    "bill_adds_up",
+    "non_payable_items",
+)
+
+
+@dataclass(frozen=True)
+class Papers:
+    """Values read from her documents that cleared the confidence gate. None means not known."""
+
+    insured_names: tuple[str, ...] | None = None  # policy
+    policy_start_on: date | None = None  # policy: first start (inception)
+    policy_end_on: date | None = None  # policy: end of the current period
+    patient_name: str | None = None  # bill
+    admission_on: date | None = None  # bill
+    discharge_on: date | None = None  # bill
+    bill_total: float | None = None  # bill: the total as printed
+    bill_lines: tuple[tuple[str, float | None], ...] | None = None  # bill: (description, amount)
+
+
+@dataclass(frozen=True)
+class Finding:
+    check: str  # one of PAPER_CHECKS
+    problem: str  # what was found, e.g. name_mismatch
+    values: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PapersCheck:
+    findings: tuple[Finding, ...]
+    passed: tuple[str, ...]  # checks that ran and found nothing
+    skipped: tuple[str, ...]  # checks that could not run: a value was missing or unclear
+
+
+_TITLES = frozenset("mr mrs ms miss master baby shri smt sri kumari kum dr late".split())
+
+
+def _words(text: str) -> list[str]:
+    return "".join(ch.lower() if ch.isalnum() else " " for ch in text or "").split()
+
+
+def _initial_or_same(a: str, b: str) -> bool:
+    return a == b or (len(a) == 1 and b.startswith(a)) or (len(b) == 1 and a.startswith(b))
+
+
+def _same_order(a: list[str], b: list[str]) -> bool:
+    if len(a) == 1 or len(b) == 1:  # one word only: it must be the other's first or last name
+        one, other = (a, b) if len(a) == 1 else (b, a)
+        return one[0] in (other[0], other[-1])
+    if a[-1] != b[-1] or not _initial_or_same(a[0], b[0]):
+        return False  # first and last names must agree; the surname exactly
+    short, long = sorted((a[1:-1], b[1:-1]), key=len)
+    position = 0
+    for word in short:  # middle names: missing or shortened to an initial is fine, in order
+        while position < len(long) and not _initial_or_same(word, long[position]):
+            position += 1
+        if position == len(long):
+            return False
+        position += 1
+    return True
+
+
+def same_person(a: str, b: str) -> bool | None:
+    """Whether two printed names are the same person, as a claims desk would read them.
+
+    Titles are ignored; a middle name may be missing or an initial (R. S. Patil is Ramesh
+    Shankar Patil); the surname may come first. The surname must match exactly, so Patel
+    is not Patil. None when they cannot be compared: a name is empty, or the scripts differ.
+    """
+    wa = [w for w in _words(a) if w not in _TITLES]
+    wb = [w for w in _words(b) if w not in _TITLES]
+    if not wa or not wb or all(w.isascii() for w in wa) != all(w.isascii() for w in wb):
+        return None
+    return _same_order(wa, wb) or _same_order(wa, wb[1:] + wb[:1]) or _same_order(wa[1:] + wa[:1], wb)
+
+
+def mentions(description: str, keyword: str) -> bool:
+    """Whole-word match, case-insensitive, plural allowed: "Gloves and masks" mentions "glove"."""
+    words, wanted = _words(description), _words(keyword)
+    if not wanted:
+        return False
+    for start in range(len(words) - len(wanted) + 1):
+        window = words[start: start + len(wanted)]
+        if all(w in (k, k + "s", k + "es") for w, k in zip(window, wanted)):
+            return True
+    return False
+
+
+def check_papers(papers: Papers, non_payable: tuple[str, ...] = ()) -> PapersCheck:
+    """Run every paper check. A check missing any value it needs is skipped, never passed."""
+    findings: list[Finding] = []
+    passed: list[str] = []
+    skipped: list[str] = []
+
+    def done(check: str, found: list[Finding]) -> None:
+        findings.extend(found)
+        if not found:
+            passed.append(check)
+
+    # The patient must be someone the policy insures.
+    names = [n for n in papers.insured_names or () if n and n.strip()]
+    verdicts = [same_person(papers.patient_name, n) for n in names] if papers.patient_name else []
+    if not verdicts or all(v is None for v in verdicts):
+        skipped.append("patient_named_on_policy")
+    else:
+        done("patient_named_on_policy", [] if any(verdicts) else [Finding(
+            "patient_named_on_policy", "name_mismatch",
+            {"patient": papers.patient_name, "insured": tuple(names)},
+        )])
+
+    # Admission inside the policy: not before it began, not after the current period ends.
+    if papers.admission_on is None or (papers.policy_start_on is None and papers.policy_end_on is None):
+        skipped.append("admission_in_policy_period")
+    else:
+        found = []
+        if papers.policy_start_on is not None and papers.admission_on < papers.policy_start_on:
+            found.append(Finding("admission_in_policy_period", "admission_before_policy",
+                                 {"admission": papers.admission_on, "start": papers.policy_start_on}))
+        if papers.policy_end_on is not None and papers.admission_on > papers.policy_end_on:
+            found.append(Finding("admission_in_policy_period", "admission_after_policy",
+                                 {"admission": papers.admission_on, "end": papers.policy_end_on}))
+        if found or (papers.policy_start_on is not None and papers.policy_end_on is not None):
+            done("admission_in_policy_period", found)
+        else:
+            skipped.append("admission_in_policy_period")  # only one end of the period is known
+
+    # Discharge on or after admission.
+    if papers.admission_on is None or papers.discharge_on is None:
+        skipped.append("discharge_after_admission")
+    else:
+        done("discharge_after_admission", [] if papers.discharge_on >= papers.admission_on else [Finding(
+            "discharge_after_admission", "discharge_before_admission",
+            {"admission": papers.admission_on, "discharge": papers.discharge_on},
+        )])
+
+    # The printed total equals the lines.
+    lines = papers.bill_lines or ()
+    if papers.bill_total is None or not lines or any(amount is None for _, amount in lines):
+        skipped.append("bill_adds_up")
+    else:
+        lines_total = sum((_dec(amount) for _, amount in lines), Decimal(0))
+        total = _dec(papers.bill_total)
+        done("bill_adds_up", [] if abs(lines_total - total) < 1 else [Finding(
+            "bill_adds_up", "bill_total_mismatch",
+            {"lines_total": _rupees(lines_total), "bill_total": _rupees(total)},
+        )])
+
+    # Items insurers usually do not pay.
+    if not lines or not non_payable:
+        skipped.append("non_payable_items")
+    else:
+        items = tuple(
+            (description, amount) for description, amount in lines
+            if any(mentions(description, keyword) for keyword in non_payable)
+        )
+        amounts = [amount for _, amount in items if amount is not None]
+        done("non_payable_items", [Finding(
+            "non_payable_items", "non_payable_items",
+            {"items": items, "amount": _rupees(sum((_dec(a) for a in amounts), Decimal(0)))},
+        )] if items else [])
+
+    return PapersCheck(tuple(findings), tuple(passed), tuple(skipped))

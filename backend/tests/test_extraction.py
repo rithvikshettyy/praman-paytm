@@ -396,6 +396,6 @@ def test_demo_fixtures_drive_the_room_cap_to_the_rupee(monkeypatch):
     )
     values = verdict.deductions[0].values
     assert values["limit"] == 5000  # 1% of ₹5,00,000, resolved in the engine
-    assert (bill.facts["bill_deductible_heads"], bill.facts["bill_exempt_heads"]) == (95000, 37000)
+    assert (bill.facts["bill_deductible_heads"], bill.facts["bill_exempt_heads"]) == (95000, 38850)  # gloves and an admission kit are consumables: never cut
     assert values["deduction"] == 35625  # (1 - 5000/8000) * 95,000
-    assert values["payable_estimate"] == 96375
+    assert values["payable_estimate"] == 98225

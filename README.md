@@ -128,7 +128,7 @@ flowchart LR
 | N3 | Document checklist over WhatsApp: photos tick slots, with a numbered-list fallback | `backend/app/cases.py`, `backend/app/channels/whatsapp.py` |
 | N5 | Respondent router with per-respondent ladders and clocks | `backend/app/core/routing.py` |
 | N6 | Consent, redaction, delete everything | `backend/app/conversation.py`, `backend/app/services/redact.py` |
-| N8 | Distributor console: headline, six counters, case list | `backend/app/console.py`, `frontend/app/console` |
+| N8 | Distributor console: headline, seven counters (including insurer queries caught before filing), case list | `backend/app/console.py`, `frontend/app/console` |
 | Coverage Q&A | Answers with citations for questions, in her language | `backend/app/rag/` |
 | Web | Demo site: chat with voice, policies, readiness, checklist, case, console | `frontend/` |
 
@@ -168,7 +168,7 @@ backend/
     eval/         golden questions for the RAG eval
     bill_heads.yaml
   scripts/        seed_demo.py, reset_demo.py, verify_report.py
-  tests/          703 tests, no network
+  tests/          744 tests, no network
 frontend/         Next.js demo site
 PRD-PAYTM.md      the hackathon build plan
 CLAUDE.md         standing rules and module map for contributors

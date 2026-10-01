@@ -382,7 +382,7 @@ def _drop(token_value_index: int):
     def translate(text, target, source_language="auto", **kwargs):
         if target == rag_answer.ENGLISH:
             return text
-        return f"<{target}>{text.replace(f'ZQ{token_value_index}ZQ', '')}</{target}>"
+        return f"<{target}>{text.replace(f'[[{token_value_index}]]', '')}</{target}>"
     return translate
 
 
@@ -411,14 +411,14 @@ def test_citations_are_kept_out_of_translation_and_put_at_the_end(collection, mo
                    "sources": [s.strip("[]")]}
     result = ask(collection, "रूम भाडे?", language="mr-IN")
     label = f"[{EXAMPLE_INSURER}, policy_wording, p.1]"
-    assert "policy_wording" not in sent[-1] and "ZQ0ZQ" in sent[-1]  # no citation sent to the translator
+    assert "policy_wording" not in sent[-1] and "[[0]]" in sent[-1]  # no citation sent to the translator
     assert result.translated is True and "1%" in result.text
     assert result.text.endswith(label) and result.text.count(label) == 1
 
 
 def test_a_broken_placeholder_sends_the_english_answer(collection, model, monkeypatch):
     def translate(text, target, source_language="auto", **kwargs):
-        return text if target == rag_answer.ENGLISH else f"<{target}>{text} ZQ</{target}>"
+        return text if target == rag_answer.ENGLISH else f"<{target}>{text} [[</{target}>"
 
     monkeypatch.setattr(sarvam, "translate", translate)
     ask(collection, "रूम भाडे?", language="mr-IN")
@@ -601,3 +601,9 @@ def test_her_document_is_cut_into_short_chunks(hers):
     finally:
         hers.drop(found)
     assert len(chunks) > 1 and all(len(c) <= hers.CHUNK_CHARS for c in chunks)
+
+
+def test_a_period_keeps_its_number_but_its_unit_is_translated():
+    protected, tokens = rag_answer._protect("Tell the insurer within 24 hours. Room rent is 1% of ₹5,00,000.")
+    assert protected == "Tell the insurer within [[0]] hours. Room rent is [[1]] of [[2]]."
+    assert tokens == {"[[0]]": "24", "[[1]]": "1%", "[[2]]": "₹5,00,000"}

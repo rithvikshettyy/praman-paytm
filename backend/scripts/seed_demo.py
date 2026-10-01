@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app import cases, store  # noqa: E402
+from app import cases, readiness, store  # noqa: E402
 from app.core.ladder_engine import Facts  # noqa: E402
 from app.services import documents, drafts  # noqa: E402
 from app.services.documents import Extraction  # noqa: E402
@@ -57,6 +57,9 @@ def seed(conn) -> tuple[str, ...]:
     # 1. Health admission: policy + bill fixtures, room above the cap.
     _open(conn, ADMISSION, "mr-IN")
     facts = {**_read(conn, ADMISSION, "policy"), **_read(conn, ADMISSION, "bill")}
+    readiness.check_papers(conn, ADMISSION, *(  # the example bill misspells the patient's surname
+        documents.trusted_values(documents.fixture_extraction(doc_type).fields) for doc_type in ("policy", "bill")
+    ))
     _complete_checklist(conn, ADMISSION)
     facts.update(cases.checklist_facts(cases.checklist_state(conn, ADMISSION)), **EXAMPLE_ANSWERS)
     cases.route_case(conn, ADMISSION, "health_policy", None)  # a coverage question: the insurer's

@@ -43,6 +43,9 @@ exempt:
   - drug
   - consumable
   - disposable
+  - glove
+  - mask
+  - admission kit
   - implant
   - stent
   - intraocular lens

@@ -98,6 +98,7 @@ EVENT_KINDS = (
     "escalation_drafted",
     "clock_started",  # detail: ladder, step, started_on, respond_by, verified_by
     "draft_approved",  # detail: draft_id, kind. Approved and ready to send; nothing is sent
+    "papers_checked",  # detail: fix (problems an insurer would query), heads_up. No names or amounts
 )
 
 # One row per case for the console: its latest route, verdict and clock, each

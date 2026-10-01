@@ -3,11 +3,20 @@
 import { useState, type FormEvent } from "react";
 
 import { ErrorNote, ExampleBadge, Loading } from "@/components/Status";
+import { PaperChecks } from "@/components/PaperChecks";
 import { VerdictCard } from "@/components/VerdictCard";
 import { ApiError, api, errorText } from "@/lib/api";
 import { humanise, inr } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import type { BillLine, DocumentSummary, Facts, Question, ReadinessFromDocuments, ReadinessView } from "@/lib/types";
+import type {
+  BillLine,
+  DocumentSummary,
+  Facts,
+  PaperChecksView,
+  Question,
+  ReadinessFromDocuments,
+  ReadinessView,
+} from "@/lib/types";
 
 function field(summary: DocumentSummary | undefined, name: string): unknown {
   return summary?.fields[name]?.value ?? null;
@@ -48,6 +57,7 @@ export default function ReadinessPage() {
   const [bill, setBill] = useState<File | null>(null);
   const [documents, setDocuments] = useState<ReadinessFromDocuments["documents"] | null>(null);
   const [verdict, setVerdict] = useState<ReadinessView | null>(null);
+  const [papers, setPapers] = useState<PaperChecksView | null>(null); // kept while she answers questions
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +85,7 @@ export default function ReadinessPage() {
       const result = await api<ReadinessFromDocuments>("/api/readiness/documents", { method: "POST", body: form });
       setDocuments(result.documents);
       setVerdict(result);
+      setPapers(result.papers);
       setAnswers({});
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
@@ -209,6 +220,7 @@ export default function ReadinessPage() {
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <div className="space-y-6">
             <VerdictCard verdict={verdict} caseId={caseId} />
+            {papers && <PaperChecks papers={papers} />}
 
             {verdict.questions.length > 0 && (
               <form onSubmit={submitAnswers} className="space-y-5 rounded-lg border border-line bg-white p-5">

@@ -9,9 +9,14 @@ nothing is ever assumed.
 from __future__ import annotations
 
 import dataclasses
+import sqlite3
+from datetime import date
+from functools import lru_cache
 from typing import Any
 
-from app import cases
+import yaml
+
+from app import cases, config, store
 from app.core import ladder_engine as le
 from app.core import ladders
 from app.services import documents
@@ -122,3 +127,78 @@ def document_summary(doc_type: str, extraction: documents.Extraction, review: do
             "exempt_total": totals["exempt"],
         }
     return summary
+
+
+# --- Paper checks: catch the insurer's query before she files ----------------
+
+
+@lru_cache(maxsize=1)
+def paper_words() -> dict[str, Any]:
+    """Labels and messages for the paper checks, and the non-payable list (data/claim_checks.yaml)."""
+    return yaml.safe_load((config.DATA_DIR / "claim_checks.yaml").read_text(encoding="utf-8"))
+
+
+def papers_from(policy: dict[str, Any] | None, bill: dict[str, Any] | None) -> le.Papers:
+    """The check inputs from each document's trusted values (documents.trusted_values)."""
+    policy, bill = policy or {}, bill or {}
+    lines = bill.get("line_items")
+    return le.Papers(
+        insured_names=tuple(policy["insured_names"]) if policy.get("insured_names") else None,
+        policy_start_on=policy.get("policy_start_date"),
+        policy_end_on=policy.get("period_end_date"),
+        patient_name=bill.get("patient_name"),
+        admission_on=bill.get("admission_date"),
+        discharge_on=bill.get("discharge_date"),
+        bill_total=bill.get("bill_total"),
+        bill_lines=tuple((line["description"], line.get("amount")) for line in lines) if lines else None,
+    )
+
+
+def _shown(name: str, value: Any) -> str:
+    if isinstance(value, date):
+        return f"{value.day} {value.strftime('%b %Y')}"
+    if name == "insured":
+        return ", ".join(value)
+    if name == "items":
+        return ", ".join(f"{text} ({ladders.inr(amount)})" if amount is not None else text for text, amount in value)
+    if isinstance(value, (int, float)):
+        return ladders.inr(value)
+    return str(value)
+
+
+def papers_view(result: le.PapersCheck) -> dict[str, Any]:
+    """Findings in her words, plus which checks ran clean and which could not run (and why)."""
+    words = paper_words()
+    checks, problems = words["checks"], words["problems"]
+    list_unverified = words["non_payable"]["verified_by"] == cases.UNVERIFIED
+    findings = []
+    for finding in result.findings:
+        problem = problems[finding.problem]
+        message = " ".join(problem["message"].split())
+        findings.append({
+            "check": finding.check,
+            "problem": finding.problem,
+            "severity": problem["severity"],
+            "message": message.format(**{k: _shown(k, v) for k, v in finding.values.items()}),
+            "unverified": finding.check == "non_payable_items" and list_unverified,
+        })
+    return {
+        "findings": findings,
+        "passed": [{"check": c, "label": checks[c]["label"]} for c in result.passed],
+        "skipped": [{"check": c, "label": checks[c]["label"], "needs": checks[c]["needs"]} for c in result.skipped],
+        "to_fix": sum(f["severity"] == "fix" for f in findings),
+    }
+
+
+def check_papers(
+    conn: sqlite3.Connection | None, case_id: str | None, policy: dict[str, Any] | None, bill: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Run the paper checks on her trusted values; with a case, log what was caught for the console."""
+    result = le.check_papers(papers_from(policy, bill), tuple(paper_words()["non_payable"]["items"]))
+    view = papers_view(result)
+    if conn is not None and case_id and (result.findings or result.passed):
+        store.record_event(conn, case_id, "papers_checked", {
+            "fix": [f["problem"] for f in view["findings"] if f["severity"] == "fix"],
+            "heads_up": [f["problem"] for f in view["findings"] if f["severity"] != "fix"],
+        })
+    return view

@@ -103,9 +103,25 @@ export interface DocumentSummary {
   };
 }
 
+export interface PaperFinding {
+  check: string;
+  problem: string;
+  severity: "fix" | "heads_up";
+  message: string;
+  unverified: boolean;
+}
+
+export interface PaperChecksView {
+  findings: PaperFinding[];
+  passed: { check: string; label: string }[];
+  skipped: { check: string; label: string; needs: string }[];
+  to_fix: number;
+}
+
 export interface ReadinessFromDocuments extends ReadinessView {
   case_id: string;
   documents: { policy?: DocumentSummary; bill?: DocumentSummary };
+  papers: PaperChecksView;
 }
 
 export interface ChecklistSlot {
@@ -188,5 +204,6 @@ export interface Metrics {
     coverage_queries_drafted: number;
     escalations_drafted: number;
     cases_routed_away: number;
+    insurer_queries_caught: number;
   };
 }

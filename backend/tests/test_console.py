@@ -73,7 +73,7 @@ def test_routed_away_is_the_cases_whose_latest_route_is_not_the_distributor(seed
     assert console.metrics(seeded)["headline"]["cases"] == 5
 
 
-def test_the_six_counters(seeded):
+def test_the_counters(seeded):
     counters = console.metrics(seeded)["counters"]
     assert counters == {
         "readiness_checks_run": 4,
@@ -83,6 +83,7 @@ def test_the_six_counters(seeded):
         "coverage_queries_drafted": 1,
         "escalations_drafted": 0,
         "cases_routed_away": 4,
+        "insurer_queries_caught": 0,
     }
 
 

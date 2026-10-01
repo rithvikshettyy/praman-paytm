@@ -1,7 +1,7 @@
 """Distributor Console reads (PRD-PAYTM N8).
 
 Three blocks: the case list, the headline ("Of N cases, X needed <the
-distributor>") and six counters. Every number is counted from event rows,
+distributor>") and the counters. Every number is counted from event rows,
 through the ``console_cases`` view or the events table directly. Nothing is
 projected, priced or estimated: "what would this save?" is answered by
 multiplying X by the distributor's own cost per ticket, which only they know.
@@ -63,7 +63,7 @@ def _count(conn: sqlite3.Connection, sql: str) -> int:
 
 
 def metrics(conn: sqlite3.Connection) -> dict[str, Any]:
-    """The headline and the six counters, all from event rows."""
+    """The headline and the counters, all from event rows."""
     routed = conn.execute(
         "SELECT COUNT(*) AS cases, "
         "COALESCE(SUM(distributor_owned = 1), 0) AS needed, "
@@ -99,5 +99,11 @@ def metrics(conn: sqlite3.Connection) -> dict[str, Any]:
             "escalations_drafted": _count(conn, "SELECT COUNT(*) FROM events WHERE kind = 'escalation_drafted'"),
             # cases whose latest route sends them to someone other than the distributor
             "cases_routed_away": routed["away"],
+            # cases where the paper checks caught something an insurer would query, before filing
+            "insurer_queries_caught": _count(
+                conn,
+                "SELECT COUNT(DISTINCT case_id) FROM events "
+                "WHERE kind = 'papers_checked' AND json_array_length(detail, '$.fix') > 0",
+            ),
         },
     }
