@@ -21,8 +21,11 @@ export const viewport: Viewport = { themeColor: "#f6f7f4" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
+    // Browser extensions (e.g. QuillBot's data-qb-installed) add attributes to <html> before React
+    // loads. This ignores attribute differences on this one element only; children are still checked.
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${latin.variable} ${devanagari.variable} ${tamil.variable} ${bangla.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans text-[16px]">
