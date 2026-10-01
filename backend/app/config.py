@@ -48,6 +48,8 @@ def _bool(name: str, default: bool = False) -> bool:
 STORE_PATH = Path(os.environ.get("PRAMAN_DB_PATH", LOCAL_DIR / "praman.db"))
 # Originals land here only when the user consents to keep them (C7).
 ORIGINALS_DIR = LOCAL_DIR / "originals"
+# The website's words in each language, translated once by Sarvam and reused (git-ignored).
+PAGE_TRANSLATIONS_PATH = Path(os.environ.get("PRAMAN_PAGE_TRANSLATIONS", LOCAL_DIR / "page_translations.json"))
 
 # --- Extraction -------------------------------------------------------------
 # A field read with less confidence than this is asked, never assumed.

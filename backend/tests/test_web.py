@@ -284,7 +284,9 @@ def test_her_questions_are_answered_from_her_document_first(monkeypatch, her_doc
     assert her_documents[-1][0] == "is flood covered?"
 
 
-def test_a_claim_document_sent_in_the_chat_still_ticks_its_slot(her_documents):
+def test_a_claim_document_sent_in_the_chat_still_ticks_its_slot(monkeypatch, her_documents):
+    discharge = [(1, "DISCHARGE SUMMARY. Hospitalisation from 05/10/2026. Room rent and cashless details.")]
+    monkeypatch.setattr(documents, "read_pages", lambda *a, **k: discharge)
     case_id = consent_given()
     upload(("d.png", PNG, "image/png"), text="discharge summary")
     assert "discharge_summary" not in client.get(f"/api/checklist/{case_id}").json()["missing"]

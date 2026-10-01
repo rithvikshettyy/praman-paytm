@@ -168,7 +168,7 @@ backend/
     eval/         golden questions for the RAG eval
     bill_heads.yaml
   scripts/        seed_demo.py, reset_demo.py, verify_report.py
-  tests/          744 tests, no network
+  tests/          930 tests, no network
 frontend/         Next.js demo site
 PRD-PAYTM.md      the hackathon build plan
 CLAUDE.md         standing rules and module map for contributors

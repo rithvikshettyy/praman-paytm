@@ -33,6 +33,7 @@ TOP_K = 10  # short chunks, so more of them fit: a clause worded differently sti
 class Upload:
     name: str
     pages: tuple[tuple[int, str], ...]
+    product: str | None = None  # which insurance it is (documents.detect_product), if clear
 
 
 _DOCS: dict[str, list[Upload]] = {}
@@ -53,10 +54,10 @@ def _label(filename: str) -> str:
     return cleaned[:60] or "document"
 
 
-def add(case_id: str, filename: str, pages: list[tuple[int, str]]) -> str:
+def add(case_id: str, filename: str, pages: list[tuple[int, str]], product: str | None = None) -> str:
     """Hold a document's pages for this case. Returns the name its citations use."""
     name = _label(filename)
-    upload = Upload(name, tuple((int(page), text) for page, text in pages if text and text.strip()))
+    upload = Upload(name, tuple((int(page), text) for page, text in pages if text and text.strip()), product)
     with _LOCK:
         docs = [d for d in _DOCS.get(case_id, []) if d.name != name] + [upload]
         _DOCS[case_id] = docs[-MAX_DOCUMENTS:]
@@ -66,6 +67,12 @@ def add(case_id: str, filename: str, pages: list[tuple[int, str]]) -> str:
 def has(case_id: str | None) -> bool:
     with _LOCK:
         return bool(case_id and _DOCS.get(case_id))
+
+
+def product(case_id: str | None) -> str | None:
+    """The kind of insurance of the latest document she sent whose kind was clear."""
+    with _LOCK:
+        return next((d.product for d in reversed(_DOCS.get(case_id, [])) if d.product), None)
 
 
 def forget(case_id: str | None) -> None:

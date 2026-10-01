@@ -259,3 +259,19 @@ def test_c7_migration_adds_routing_columns_to_an_older_cases_table(tmp_path):
     assert {"product", "respondent", "respondent_name", "distributor_owned"} <= columns
     assert store.get_case(conn, "c0")["language"] == "mr-IN"
     conn.close()
+
+
+@pytest.mark.parametrize("product", ["life_policy", "travel_policy", "home_policy", "other_insurance"])
+def test_any_insurance_claim_goes_to_the_insurer_ladder(product):
+    r = route(product, "insurance/claim_delayed")
+    assert (r.respondent, r.distributor_owned) == ("insurer", False)
+    assert r.steps == ("insurer_grievance_cell", "irdai_grievance", "insurance_ombudsman")
+
+
+@pytest.mark.parametrize("product", agent.INSURANCE_PRODUCTS)
+def test_a_coverage_question_on_any_insurance_is_answered_then_asked_of_the_insurer(product):
+    assert route(product, None).steps == ("answered_in_chat", "coverage_query")
+
+
+def test_the_router_knows_every_insurance_the_classifier_does():
+    assert routing._INSURANCE == frozenset(agent.INSURANCE_PRODUCTS)

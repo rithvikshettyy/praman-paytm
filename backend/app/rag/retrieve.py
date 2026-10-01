@@ -35,6 +35,13 @@ def resolve_insurer(name: str | None) -> str | None:
     return _corpus_insurers().get(_name_key(name)) if name else None
 
 
+def _same_text(a: str, b: str) -> bool:
+    """Near-identical passages (a clause repeated on page after page, differing only in a
+    section number): they would crowd out the one clause that answers her."""
+    wa, wb = set(re.findall(r"[a-z]+", a.lower())), set(re.findall(r"[a-z]+", b.lower()))
+    return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.9
+
+
 @dataclass(frozen=True)
 class Passage:
     id: str
@@ -73,9 +80,10 @@ def retrieve(
     collection = collection if collection is not None else index.default_collection()
     if not question.strip() or collection.count() == 0:
         return []
+    k = k or config.RAG_TOP_K
     result = collection.query(
         query_texts=[question],
-        n_results=k or config.RAG_TOP_K,
+        n_results=min(k * 3, collection.count()),  # room to skip near-duplicates
         where=_where(insurer, product),
         include=["documents", "metadatas", "distances"],
     )
@@ -98,4 +106,8 @@ def retrieve(
                 distance=float(distance),
             )
         )
-    return passages
+    distinct: list[Passage] = []
+    for passage in passages:  # nearest first; a near-copy of one already kept adds nothing
+        if not any(_same_text(passage.text, kept.text) for kept in distinct):
+            distinct.append(passage)
+    return distinct[:k]

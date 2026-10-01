@@ -3,6 +3,7 @@ import { Anek_Bangla, Anek_Devanagari, Anek_Latin, Anek_Tamil } from "next/font/
 
 import { ChatWidget } from "@/components/ChatWidget";
 import { SiteHeader } from "@/components/SiteHeader";
+import { PageTranslator } from "@/lib/pageTranslator";
 import { SessionProvider } from "@/lib/session";
 
 import "./globals.css";
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </footer>
           <ChatWidget />
+          <PageTranslator />
         </SessionProvider>
       </body>
     </html>

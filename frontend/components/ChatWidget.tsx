@@ -304,6 +304,7 @@ export function ChatWidget() {
         </label>
         <select
           id="chat-language"
+          translate="no"
           value={language}
           onChange={(event) => setLanguage(event.target.value)}
           className="rounded-md border border-line bg-white px-2 py-1 text-sm"
@@ -340,14 +341,15 @@ export function ChatWidget() {
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
         {items.length === 0 && (
           <p className="text-[15px] text-muted">
-            Ask about your policy, say what went wrong with a claim, or ask what documents are still missing. You can
-            also speak (press the microphone) or send a document (press the paperclip, add a question if you like,
-            then press Enter).
+            Send any insurance policy (health, bike, car, life, travel or home) with the paperclip and ask anything
+            about it, say what went wrong with a claim, or ask what documents are still missing. You can also speak:
+            press the microphone.
           </p>
         )}
         {items.map((item) => (
           <div key={item.id} className={item.from === "you" ? "flex justify-end" : "flex justify-start"}>
             <div
+              translate="no"
               className={`max-w-[85%] rounded-lg px-3 py-2 text-[15px] leading-relaxed ${
                 item.from === "you" ? "bg-pine text-white" : "border border-line bg-white text-ink"
               }`}

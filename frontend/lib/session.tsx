@@ -16,6 +16,9 @@ export const LANGUAGES = [
   { code: "gu-IN", label: "ગુજરાતી (Gujarati)" },
   { code: "te-IN", label: "తెలుగు (Telugu)" },
   { code: "kn-IN", label: "ಕನ್ನಡ (Kannada)" },
+  { code: "ml-IN", label: "മലയാളം (Malayalam)" },
+  { code: "od-IN", label: "ଓଡ଼ିଆ (Odia)" },
+  { code: "pa-IN", label: "ਪੰਜਾਬੀ (Punjabi)" },
 ] as const;
 
 export interface ChatContext {

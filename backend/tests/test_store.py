@@ -80,3 +80,21 @@ def test_c7_tables_exist(conn):
     assert {"documents", "consents"} <= tables
     columns = {r[1] for r in conn.execute("PRAGMA table_info(documents)")}
     assert {"id", "case_id", "doc_type", "slot", "received_at", "fields", "confidence", "retained"} <= columns
+
+
+def test_many_connections_at_once_do_not_trip_over_the_console_view(tmp_path):
+    """The console fetches counters and cases together; their connections must not race."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = tmp_path / "praman.db"
+    store.connect(path).close()
+
+    def open_and_read(_):
+        conn = store.connect(path)
+        try:
+            return conn.execute("SELECT COUNT(*) FROM console_cases").fetchone()[0]
+        finally:
+            conn.close()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        assert list(pool.map(open_and_read, range(64))) == [0] * 64

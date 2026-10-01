@@ -22,7 +22,7 @@ from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
 from app.core import ladder_engine as le
 from app.core import ladders
-from app.services import documents, drafts, voice
+from app.services import documents, drafts, i18n, voice
 from app.services.documents import ExtractionFailed, UploadRejected
 
 logger = logging.getLogger(__name__)
@@ -372,6 +372,23 @@ def _transcribe(audio: UploadFile, language: str | None) -> str | JSONResponse:
     if not transcript:
         return _bad("I could not hear any words in that recording. Please try again.", 422)
     return transcript
+
+
+@app.post("/api/translate")
+def translate_page(body: dict = Body(...)):
+    """The website's own words in her language: {language, texts} -> {translations}, same order.
+
+    Translated by Sarvam once per string and language, then served from a disk cache.
+    Amounts, percentages and dates are kept exactly; anything unsafe stays in English.
+    """
+    language, texts = body.get("language"), body.get("texts")
+    if language not in config.SUPPORTED_LANGUAGES:
+        return _bad(f"language must be one of {sorted(config.SUPPORTED_LANGUAGES)}.")
+    if not isinstance(texts, list) or not all(isinstance(t, str) for t in texts):
+        return _bad("texts must be a list of strings.")
+    if len(texts) > i18n.MAX_TEXTS or any(len(t) > i18n.MAX_CHARS for t in texts):
+        return _bad(f"Send at most {i18n.MAX_TEXTS} texts of up to {i18n.MAX_CHARS} characters each.")
+    return {"language": language, "translations": i18n.translate_page(texts, language)}
 
 
 @app.post("/api/chat/upload")

@@ -13,6 +13,7 @@ import json
 import re
 import shutil
 import sqlite3
+import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -152,15 +153,21 @@ MIGRATIONS = {
 }
 
 
+# Setting up the schema drops and re-creates the console view; two requests doing that at once
+# (the console fetches its counters and its case list together) failed with "view already exists".
+_SETUP_LOCK = threading.Lock()
+
+
 def connect(path: Path | str | None = None) -> sqlite3.Connection:
     """Open the store, creating the file and tables if needed and migrating older ones."""
     path = Path(path or config.STORE_PATH)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
-    _migrate(conn)
-    conn.executescript(CONSOLE_VIEW)
+    with _SETUP_LOCK:
+        conn.executescript(SCHEMA)
+        _migrate(conn)
+        conn.executescript(CONSOLE_VIEW)
     return conn
 
 

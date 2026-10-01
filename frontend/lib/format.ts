@@ -24,7 +24,11 @@ export const OUTCOME_LABEL: Record<string, string> = {
 
 export const PRODUCT_LABEL: Record<string, string> = {
   health_policy: "Health policy",
-  motor_policy: "Motor policy",
+  motor_policy: "Motor policy (bike, car)",
+  life_policy: "Life policy",
+  travel_policy: "Travel policy",
+  home_policy: "Home policy",
+  other_insurance: "Other insurance",
   merchant_loan: "Merchant loan",
 };
 

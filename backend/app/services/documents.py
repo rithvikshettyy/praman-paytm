@@ -540,6 +540,33 @@ def detect_doc_type(text: str) -> str:
     return next(doc_type for doc_type in _TYPE_KEYWORDS if scores[doc_type] == best)
 
 
+_PRODUCT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "motor_policy": ("two wheeler", "two-wheeler", "private car", "motor", "vehicle", "idv", "insured declared value",
+                     "own damage", "third party", "registration no", "chassis", "engine no"),
+    "life_policy": ("life assured", "sum assured", "death benefit", "maturity", "term plan", "premium paying term",
+                    "surrender value", "endowment", "ulip", "life insurance"),
+    "health_policy": ("hospitalisation", "hospitalization", "room rent", "pre-existing", "cashless", "day care",
+                      "domiciliary", "health insurance", "mediclaim"),
+    "travel_policy": ("travel insurance", "trip", "passport", "baggage", "overseas", "flight delay"),
+    "home_policy": ("home insurance", "householder", "dwelling", "building and contents", "property insurance",
+                    "griha raksha", "contents"),
+}
+
+
+def detect_product(text: str) -> str | None:
+    """Guess which insurance a document is (motor, life, health, travel, home) from its text.
+    None when nothing matches or two kinds tie: then it is asked, not guessed."""
+    lowered = (text or "").lower()
+    scores = {
+        product: sum(1 for kw in keywords if re.search(r"\b" + re.escape(kw) + r"\b", lowered))
+        for product, keywords in _PRODUCT_KEYWORDS.items()
+    }
+    ranked = sorted(scores.values(), reverse=True)
+    if ranked[0] == 0 or ranked[0] == ranked[1]:
+        return None
+    return max(scores, key=scores.get)
+
+
 # --- Normalising what Doc AI read --------------------------------------------
 
 

@@ -38,7 +38,9 @@ GRIEVANCE_CLASSES = (
 )
 
 # motor_policy is reserved: the classifier may emit it before a motor ruleset exists.
-PRODUCTS = ("health_policy", "merchant_loan", "motor_policy")
+# Every kind of insurance a customer may hold, plus the loan the PRD names.
+INSURANCE_PRODUCTS = ("health_policy", "motor_policy", "life_policy", "travel_policy", "home_policy", "other_insurance")
+PRODUCTS = INSURANCE_PRODUCTS + ("merchant_loan",)
 
 _CLASS_NOTES = {
     "banking/service_deficiency": "a bank failed to provide a service it owed",
@@ -76,14 +78,21 @@ grievance_class, one of (null unless something has gone wrong):
 {chr(10).join(f"- {name}: {_CLASS_NOTES[name]}" for name in GRIEVANCE_CLASSES)}
 
 product, one of, or null if it is not clear:
-- health_policy: health insurance
+- health_policy: health or medical insurance, including hospitalisation and top-up cover
+- motor_policy: vehicle insurance: bike, scooter, car or commercial vehicle
+- life_policy: life insurance: term, endowment, money-back, ULIP or pension plan
+- travel_policy: travel insurance
+- home_policy: home, property, shop or contents insurance
+- other_insurance: any other insurance (personal accident, gadget, crop, pet, cyber and so on)
 - merchant_loan: a loan to a shop or small business
-- motor_policy: vehicle insurance
 
 Rules:
 - Write every value exactly as listed above, in English, whatever language the message is in.
 - A premium or instalment debited twice, a failed mandate or autopay, or a missing refund is
   platform/payment_failed or platform/refund, even when the money was for a policy or a loan.
+- Something that happened to her (an accident, a theft, an illness, a death in the family) where she asks
+  what to do or whether she is covered is a question, not a grievance. A grievance is when a company (the
+  insurer, the lender, the app) did something wrong or has not done what it should.
 - pre_decision and smalltalk always have grievance_class null. A loan offer she is weighing is not a banking complaint.
 - If you are unsure, use null. Never guess."""
 

@@ -12,7 +12,7 @@ def test_prompt_names_every_intent_class_and_product():
 
 def test_c1_values_are_present():
     assert "pre_decision" in agent.INTENTS
-    assert {"health_policy", "merchant_loan", "motor_policy"} == set(agent.PRODUCTS)
+    assert {"health_policy", "merchant_loan", "motor_policy"} <= set(agent.PRODUCTS)  # the PRD three, and every other insurance
     for family in ("lending/", "insurance/", "platform/"):
         assert any(c.startswith(family) for c in agent.GRIEVANCE_CLASSES)
     assert {

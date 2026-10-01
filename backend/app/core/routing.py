@@ -35,6 +35,8 @@ _LENDING = frozenset(
     }
 )
 _CLAIMS = frozenset({"insurance/claim_denied", "insurance/claim_delayed"})
+# Every kind of insurance (agent.INSURANCE_PRODUCTS); the router stays free of the classifier.
+_INSURANCE = frozenset({"health_policy", "motor_policy", "life_policy", "travel_policy", "home_policy", "other_insurance"})
 
 
 @dataclass(frozen=True)
@@ -51,10 +53,10 @@ class Row:
 
 
 TABLE: tuple[Row, ...] = (
-    Row("Claim denied or delayed", _CLAIMS, frozenset({"health_policy"}),
+    Row("Claim denied or delayed", _CLAIMS, _INSURANCE - {"motor_policy"},
         INSURER, False, "insurance_claim",
         ("insurer_grievance_cell", "irdai_grievance", "insurance_ombudsman")),
-    Row("Coverage question on her own policy", frozenset({None}), frozenset({"health_policy", "motor_policy"}),
+    Row("Coverage question on her own policy", frozenset({None}), _INSURANCE,
         INSURER, False, "coverage_question",
         ("answered_in_chat", "coverage_query")),
     Row("Mis-sold or bundled policy", frozenset({"insurance/mis_sold"}), None,

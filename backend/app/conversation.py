@@ -51,9 +51,21 @@ DELETED = "Everything is deleted: your case, its documents and every record of t
 NEEDS_DETAIL = "Tell me which policy or loan this is about, and what happened, so I can send it to the right place."
 PRE_DECISION = "Before you decide, send me a photo of the policy or the loan offer and I will check it for you."
 GREETING = (
-    "Hello, I am Praman. I can check a health insurance claim before you file it, answer questions from "
-    "your policy, and tell you who owes you an answer when something goes wrong. Ask me anything, or send "
-    "a photo of a claim document."
+    "Hello, I am Praman. Send me any insurance policy (health, bike, car, life, travel or home) and ask me "
+    "anything about it, in your language. I can also check a health claim before you file it, and tell you "
+    "who owes you an answer when something goes wrong."
+)
+FOLLOW_UP = (
+    "Ask me anything about the policy you sent: what it covers and what it does not, its dates and amounts, "
+    "or what to do for a claim. You can also send another document."
+)
+ASK_FOR_POLICY = (
+    "I answer only from your own policy, so I will not guess. Send a photo or PDF of the policy (health, bike, "
+    "car, life, travel or any other) and ask again, or I can write the question to your insurer for you."
+)
+HELP = (
+    "I did not follow that. Ask me a question about your insurance, tell me what went wrong with a claim, "
+    "or send a photo or PDF of your policy."
 )
 THANKS = "You are welcome. Ask me anything else about your policy or claim, or send the next document."
 COULD_NOT_READ = "I could not read {name}. Please send a clearer photo or the PDF."
@@ -74,6 +86,9 @@ _YES = {"yes", "y", "ok", "okay", "agree", "i agree", "haan", "han", "ha", "ho",
 _NO = {"no", "n", "nahi", "nahin", "nako", "नाही", "नहीं", "नको", "मत"}
 _DELETE = {"delete everything", "delete all", "delete my data", "सगळं हटवा", "सगळे हटवा", "सर्व हटवा",
            "सब हटाओ", "सब हटा दो", "सब डिलीट करो", "सब मिटा दो"}
+# She is asking about the claim documents: the checklist answers that, whatever else is under way.
+_CHECKLIST_WORDS = {"missing", "document", "documents", "checklist", "status", "pending", "कागद", "कागदपत्र",
+                    "कागदपत्रे", "दस्तावेज", "दस्तावेज़", "बाकी", "राहिले"}
 # Answered without a model call, so a greeting works even when Sarvam is down.
 _GREETINGS = {"hi", "hii", "hello", "helo", "hey", "hola", "namaste", "namaskar", "namaskaar", "good morning",
               "good afternoon", "good evening", "hi praman", "hello praman", "नमस्कार", "नमस्ते", "हाय", "हॅलो",
@@ -170,9 +185,10 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
         return (Message(GREETING),)
     found = agent.classify(text)
     if found.intent == "smalltalk":
-        return (Message(GREETING),)
-    if found.intent in (None, "question", "pre_decision"):
-        from_hers = _ask_hers(case["id"], text, language)
+        return (Message(FOLLOW_UP if _has_hers(case["id"]) else GREETING),)
+    unplaced_grievance = found.intent == "grievance" and not found.grievance_class
+    if found.intent in (None, "question", "pre_decision") or unplaced_grievance:
+        from_hers = _ask_hers(case["id"], text, language)  # her own policy may already say what to do
         if from_hers:
             return from_hers
     if found.intent == "question":
@@ -181,16 +197,20 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
             text, language=language, insurer=insurer, product=product,
             names=cases.respondent_names(conn, case["id"]),
         )
-        if result.status != "answered" and result.handoff is None and _has_hers(case["id"]):
-            # She has sent documents: say we looked in them, not "which policy is this about?".
-            return (Message(NOT_IN_HERS),)
+        if result.status != "answered":
+            if _has_hers(case["id"]):
+                if result.handoff is None:  # say we looked in her documents, not "which policy is this?"
+                    return (Message(NOT_IN_HERS),)
+            else:
+                return (Message(ASK_FOR_POLICY),)  # nothing of hers to answer from yet: ask for it
         return (_cited(result),)
     if found.intent == "grievance" and found.grievance_class:
-        route = cases.route_case(conn, case["id"], found.product or case.get("product"), found.grievance_class)
+        product = found.product or case.get("product") or _product_of_hers(case["id"])
+        route = cases.route_case(conn, case["id"], product, found.grievance_class)
         if route is None:
             return (Message(NEEDS_DETAIL),)
         step = ladders.load_steps()[route.first_step]
-        who = route.respondent_name or f"the {route.respondent}"
+        who = route.respondent_name or f"your {route.respondent}"
         return (Message(f"This one is for {who}. First step: {step.label}.", unverified=step.verified_by == cases.UNVERIFIED),)
     if found.intent == "pre_decision":
         return (Message(PRE_DECISION),)
@@ -231,6 +251,12 @@ def _has_hers(case_id: str) -> bool:
     return mine.has(case_id)
 
 
+def _product_of_hers(case_id: str) -> str | None:
+    from app.rag import mine
+
+    return mine.product(case_id)
+
+
 def forget_documents(case_id: str) -> None:
     """Drop the documents she sent in the chat (held in memory only)."""
     from app.rag import mine
@@ -260,11 +286,13 @@ def _explain(conn, case: dict, photos: list[Attachment], text: str, language: st
         if not pages:
             messages.append(Message(COULD_NOT_READ.format(name=filename)))
             continue
-        read.append(mine.add(case_id, filename, pages))
+        product = documents.detect_product(" ".join(text for _, text in pages[:3]))
+        read.append(mine.add(case_id, filename, pages, product))
 
-        # A plain claim document still ticks its checklist slot, quietly.
+        # A health claim document still ticks its checklist slot, quietly; a bike, life or other
+        # policy never fills the health claim checklist.
         slot = cases.classify_slot(checklist, caption=attachment.caption) or cases.classify_slot(checklist, text=pages[0][1])
-        if slot is not None:
+        if slot is not None and product in (None, "health_policy"):
             cases.attach(conn, case_id, data, filename, mime_type=attachment.content_type, slot=slot, checklist=checklist)
     if not read:
         return messages
@@ -375,6 +403,9 @@ def respond(
     state = cases.checklist_state(conn, case_id, checklist)
     if state.pending_document_id is not None:
         messages.append(Message(cases.options_message(checklist)))
+    elif not state.collected and not messages and not (set(said.split()) & _CHECKLIST_WORDS):
+        # No health claim under way: the document checklist would be beside the point.
+        messages.append(Message(HELP))
     else:
         # The required-document list itself is UNVERIFIED, so the status carries the badge.
         messages.append(Message(cases.status_message(state, checklist), unverified=checklist.verified_by == cases.UNVERIFIED))

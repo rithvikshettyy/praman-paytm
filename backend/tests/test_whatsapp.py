@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app import config, store
+from app import config, conversation, store
 from app.channels import whatsapp as wa
 from app.clients import sarvam
 from app.main import app
@@ -109,7 +109,7 @@ def test_a_clear_photo_ticks_its_slot_and_the_reply_names_what_is_missing(env):
 
 def test_replies_come_in_her_language_by_voice(env):
     texts, _ = say(env, text="नमस्कार, माझ्या वडिलांचा क्लेम")
-    assert texts[0].startswith("[mr-IN] Still missing, 6 of 6")
+    assert texts[0] == f"[mr-IN] {conversation.HELP}"  # no claim documents yet: no health checklist
     assert env.spoken[0].language == "mr-IN"
 
     env.monkeypatch.setattr(documents, "read_text", lambda *a, **k: DISCHARGE)
@@ -153,7 +153,7 @@ def test_a_number_out_of_range_asks_again(env):
 def test_a_voice_note_is_not_filed_as_a_document(env):
     texts, _ = say(env, media=1, content_type="audio/ogg")
     assert case_state().collected == 0
-    assert texts[0].startswith("Still missing")
+    assert texts[0].endswith(conversation.HELP)
 
 
 def test_text_without_a_pending_photo_gets_the_current_checklist(env):
