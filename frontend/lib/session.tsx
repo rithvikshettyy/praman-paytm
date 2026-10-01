@@ -188,6 +188,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             <ul className="mt-4 space-y-2 text-[15px] leading-relaxed text-ink">
               <li>To read a document, I send it to our document-reading service, Sarvam.</li>
               <li>I keep only the details your claim needs, not the file itself.</li>
+              <li>
+                While we chat, I hold a document&rsquo;s text in memory so I can answer questions about it. It is never
+                saved, and goes when you delete everything.
+              </li>
               <li>Account, Aadhaar, PAN and policy numbers are hidden in any text I send out.</li>
               <li>You can delete everything at any time from your case page.</li>
             </ul>

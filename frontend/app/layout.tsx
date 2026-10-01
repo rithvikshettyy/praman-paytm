@@ -30,7 +30,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SiteHeader />
           <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-8">{children}</main>
           <footer className="border-t border-line">
-            <p className="mx-auto max-w-5xl px-4 py-5 text-sm text-muted">Prototype for demo</p>
+            <div className="mx-auto max-w-5xl space-y-1 px-4 py-5 text-sm text-muted">
+              <p>Prototype for demo</p>
+              {/* A plain-text credit for the event, not branding: no logo, and no claim of partnership. */}
+              <p>
+                Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with
+                or endorsed by Paytm.
+              </p>
+            </div>
           </footer>
           <ChatWidget />
         </SessionProvider>

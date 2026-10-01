@@ -855,6 +855,27 @@ def read_text(
     return _first_page_text(result)
 
 
+def read_pages(
+    data: bytes,
+    filename: str,
+    *,
+    mime_type: str | None = None,
+    timeout: float | None = None,
+    poll_interval: float | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> list[tuple[int, str]]:
+    """OCR only: every page's text as (page number, text), for answering her questions from it."""
+    timeout = config.DOC_AI_TIMEOUT_SECONDS if timeout is None else timeout
+    poll = config.DOC_AI_POLL_SECONDS if poll_interval is None else poll_interval
+    result = _wait(submit(data, filename, mime_type=mime_type), timeout, poll, sleep)
+    pages: dict[int, list[str]] = {}
+    for block in result.get("page_blocks") or []:
+        pages.setdefault(int(block["page_number"]), []).append(block["text"])
+    if not pages and (result.get("text") or "").strip():
+        return [(1, result["text"])]
+    return [(page, "\n".join(texts)) for page, texts in sorted(pages.items()) if "".join(texts).strip()]
+
+
 def extract(
     data: bytes,
     filename: str,

@@ -10,14 +10,20 @@ Order of play for one message:
   2. a consent answer, if one is awaited (photos wait, unread, until YES)
   3. photos                       -> checklist slots (N3)
   4. a number, if a photo waits   -> the slot she picked
-  5. other text                   -> classify (C1): question -> RAG answer with citations;
-                                     grievance -> N5 route, named; pre_decision -> ask for the document
+  5. other text                   -> a greeting or thanks gets a fixed reply; otherwise classify (C1):
+                                     question -> RAG answer with citations; grievance -> N5 route, named;
+                                     pre_decision -> ask for the document; smalltalk -> the greeting
   6. anything else                -> the checklist status
+
+The web chat also reads what she sends (``explain_documents``): each document is
+read in full, summarised with citations, and held in memory (rag/mine.py) so her
+questions are answered from it first. WhatsApp keeps the checklist flow.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 import threading
 import unicodedata
@@ -27,7 +33,7 @@ from typing import Any, Callable, Mapping
 from app import cases, config, store
 from app.clients import sarvam
 from app.core import agent, ladders
-from app.services import i18n
+from app.services import documents, i18n
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +42,44 @@ UNVERIFIED_BADGE = "⚠ Not yet verified."
 CONSENT_PROMPT = (
     "Before I read your documents, I need your yes. To read a photo, I send it to our "
     "document-reading service, Sarvam. I keep only the details your claim needs, not the photo, "
-    "unless you ask me to keep it. Account, Aadhaar, PAN and policy numbers are hidden in any text "
+    "unless you ask me to keep it. In the web chat I hold a document's text in memory, never saved, so I can "
+    "answer questions about it. Account, Aadhaar, PAN and policy numbers are hidden in any text "
     "I send out. You can say \"delete everything\" at any time. Reply YES to agree, or NO."
 )
 CONSENT_DECLINED = "Okay. I will not read your documents. Reply YES any time if you change your mind."
 DELETED = "Everything is deleted: your case, its documents and every record of them held by this service."
 NEEDS_DETAIL = "Tell me which policy or loan this is about, and what happened, so I can send it to the right place."
 PRE_DECISION = "Before you decide, send me a photo of the policy or the loan offer and I will check it for you."
+GREETING = (
+    "Hello, I am Praman. I can check a health insurance claim before you file it, answer questions from "
+    "your policy, and tell you who owes you an answer when something goes wrong. Ask me anything, or send "
+    "a photo of a claim document."
+)
+THANKS = "You are welcome. Ask me anything else about your policy or claim, or send the next document."
+COULD_NOT_READ = "I could not read {name}. Please send a clearer photo or the PDF."
+READ_IT = "Ask me anything about this document."
+READ_THEM = "Ask me anything about these documents."
+NOT_IN_HERS = (
+    "I could not find this in the document you sent, or in the policy wordings and rules I have, so I will "
+    "not guess. Try asking it another way, or send the page that covers it."
+)
+# Asked of her own document when she sends it; answered from its opening pages, with citations.
+SUMMARY_QUESTION = (
+    "What is this document? Say what kind of document it is, who issued it, who or what it covers, "
+    "its dates, and its main amounts. At most three sentences."
+)
 
 _YES = {"yes", "y", "ok", "okay", "agree", "i agree", "haan", "han", "ha", "ho", "hoy",
         "हो", "होय", "हाँ", "हां", "ठीक", "ठीक आहे", "ठीक है", "चालेल"}
 _NO = {"no", "n", "nahi", "nahin", "nako", "नाही", "नहीं", "नको", "मत"}
 _DELETE = {"delete everything", "delete all", "delete my data", "सगळं हटवा", "सगळे हटवा", "सर्व हटवा",
            "सब हटाओ", "सब हटा दो", "सब डिलीट करो", "सब मिटा दो"}
+# Answered without a model call, so a greeting works even when Sarvam is down.
+_GREETINGS = {"hi", "hii", "hello", "helo", "hey", "hola", "namaste", "namaskar", "namaskaar", "good morning",
+              "good afternoon", "good evening", "hi praman", "hello praman", "नमस्कार", "नमस्ते", "हाय", "हॅलो",
+              "हेलो", "हलो", "राम राम", "जय महाराष्ट्र", "सुप्रभात", "शुभ प्रभात"}
+_THANKS = {"thanks", "thank you", "thank you so much", "thanks a lot", "thx", "ty", "dhanyavad", "dhanyawad",
+           "shukriya", "धन्यवाद", "शुक्रिया", "आभार", "थँक्यू", "थैंक यू"}
 
 
 @dataclass(frozen=True)
@@ -58,6 +89,7 @@ class Attachment:
     content_type: str
     fetch: Callable[[], bytes]
     caption: str | None = None
+    filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -131,15 +163,28 @@ def _policy_context(conn: sqlite3.Connection, case: dict, context: Mapping[str, 
 
 
 def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str, context) -> tuple[Message, ...] | None:
+    said = _normalised(text)
+    if said in _THANKS:
+        return (Message(THANKS),)
+    if said in _GREETINGS:
+        return (Message(GREETING),)
     found = agent.classify(text)
+    if found.intent == "smalltalk":
+        return (Message(GREETING),)
+    if found.intent in (None, "question", "pre_decision"):
+        from_hers = _ask_hers(case["id"], text, language)
+        if from_hers:
+            return from_hers
     if found.intent == "question":
         insurer, product = _policy_context(conn, case, context)
         result = _ask(
             text, language=language, insurer=insurer, product=product,
             names=cases.respondent_names(conn, case["id"]),
         )
-        citations = tuple({"label": c.label, **asdict(c)} for c in result.citations)
-        return (Message(result.text, unverified=result.unverified, citations=citations, localized=True),)
+        if result.status != "answered" and result.handoff is None and _has_hers(case["id"]):
+            # She has sent documents: say we looked in them, not "which policy is this about?".
+            return (Message(NOT_IN_HERS),)
+        return (_cited(result),)
     if found.intent == "grievance" and found.grievance_class:
         route = cases.route_case(conn, case["id"], found.product or case.get("product"), found.grievance_class)
         if route is None:
@@ -150,6 +195,97 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
     if found.intent == "pre_decision":
         return (Message(PRE_DECISION),)
     return None
+
+
+# --- Her own documents (web chat) ---------------------------------------------------
+
+
+def _cited(result) -> Message:
+    citations = tuple({"label": c.label, **asdict(c)} for c in result.citations)
+    return Message(result.text, unverified=result.unverified, citations=citations, localized=True)
+
+
+def _ask_hers(case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
+    """Answer from the documents she sent in this chat, if any; None when they do not say."""
+    from app.rag import mine
+
+    if not mine.has(case_id):
+        return None
+    # The closest passages first; then the opening pages, which is where a broad question
+    # ("what do I need to know?") finds the schedule: dates, amounts, cover.
+    for first_chunks in (None, config.RAG_TOP_K):
+        found = mine.collection(case_id, first_chunks=first_chunks)
+        try:
+            result = _ask(text, language=language, insurer=mine.YOUR_DOCUMENT, product=mine.PRODUCT,
+                          collection=found, k=mine.TOP_K)
+        finally:
+            mine.drop(found)
+        if result.status == "answered":
+            return (_cited(result),)
+    return None
+
+
+def _has_hers(case_id: str) -> bool:
+    from app.rag import mine
+
+    return mine.has(case_id)
+
+
+def forget_documents(case_id: str) -> None:
+    """Drop the documents she sent in the chat (held in memory only)."""
+    from app.rag import mine
+
+    mine.forget(case_id)
+
+
+def _explain(conn, case: dict, photos: list[Attachment], text: str, language: str, checklist, context) -> list[Message]:
+    """Read each document and hold its text for her questions.
+
+    With a message that asks something, that is answered (from these documents first);
+    otherwise, or when the message only says what the document is ("bill"), each one is summarised.
+    """
+    from app.rag import mine
+
+    case_id = case["id"]
+    messages: list[Message] = []
+    read: list[str] = []
+    for index, attachment in enumerate(photos):
+        filename = attachment.filename or f"upload-{index}.{attachment.content_type.split('/')[-1]}"
+        try:
+            data = attachment.fetch()
+            pages = documents.read_pages(data, filename, mime_type=attachment.content_type)
+        except Exception as exc:  # unreadable or a Doc AI failure: ask for a better copy, never crash
+            logger.info("Could not read a chat document: %s", exc)
+            pages = []
+        if not pages:
+            messages.append(Message(COULD_NOT_READ.format(name=filename)))
+            continue
+        read.append(mine.add(case_id, filename, pages))
+
+        # A plain claim document still ticks its checklist slot, quietly.
+        slot = cases.classify_slot(checklist, caption=attachment.caption) or cases.classify_slot(checklist, text=pages[0][1])
+        if slot is not None:
+            cases.attach(conn, case_id, data, filename, mime_type=attachment.content_type, slot=slot, checklist=checklist)
+    if not read:
+        return messages
+
+    said = _normalised(text)
+    asks = said and said not in _GREETINGS | _THANKS and cases.classify_slot(checklist, caption=text) is None
+    answered = _answer_text(conn, case, text, language, context) if asks else None
+    offer = Message(READ_IT if len(read) == 1 else READ_THEM)
+    if answered:
+        return messages + list(answered) + [offer]
+
+    for name in read:
+        found = mine.collection(case_id, only=name, first_chunks=config.RAG_TOP_K)
+        try:
+            summary = _ask(SUMMARY_QUESTION, language=language, question_language="en-IN",
+                           insurer=mine.YOUR_DOCUMENT, product=mine.PRODUCT, collection=found)
+        finally:
+            mine.drop(found)
+        if summary.status == "answered":
+            messages.append(_cited(summary))
+    return messages + [offer]
 
 
 # --- One message in, one reply out -----------------------------------------------
@@ -164,6 +300,7 @@ def respond(
     language: str | None = None,
     context: Mapping[str, Any] | None = None,
     checklist: cases.Checklist | None = None,
+    explain_documents: bool = False,
 ) -> Reply:
     """Handle one message from ``user`` (a channel-scoped id such as whatsapp:+91… or web:<session>)."""
     checklist = checklist or cases.load_checklist()
@@ -177,6 +314,7 @@ def respond(
         reply_language = chosen or (existing or {}).get("language") or config.DEFAULT_LANGUAGE
         if existing:
             store.delete_case(conn, existing["id"])
+            forget_documents(existing["id"])
         with _AWAITING_LOCK:
             _AWAITING_CONSENT.pop(user, None)
         return Reply(None, reply_language, (Message(DELETED),))
@@ -211,6 +349,8 @@ def respond(
     pending = store.pending_document(conn, case_id, cases.CLAIM_DOC)
     number = _number(text) if text and not photos else None
 
+    if photos and explain_documents:
+        return Reply(case_id, reply_language, tuple(_explain(conn, case, photos, text, reply_language, checklist, context)))
     if photos:
         for index, attachment in enumerate(photos):
             try:
@@ -239,6 +379,16 @@ def respond(
         # The required-document list itself is UNVERIFIED, so the status carries the badge.
         messages.append(Message(cases.status_message(state, checklist), unverified=checklist.verified_by == cases.UNVERIFIED))
     return Reply(case_id, reply_language, tuple(messages))
+
+
+_CITATION_LABEL = re.compile(r"\s*\[[^\[\]]+, [^\[\]]+, p\.\d+\]")
+_SPACE_BEFORE_STOP = re.compile(r"\s+([.,;:!?।])")
+
+
+def without_citations(text: str) -> str:
+    """The answer without its inline [source, document, p.N] labels: for the screen, which shows
+    the citations as chips, and for anything spoken aloud."""
+    return _SPACE_BEFORE_STOP.sub(r"\1", _CITATION_LABEL.sub("", text)).strip()
 
 
 def render(message: Message, language: str) -> str:

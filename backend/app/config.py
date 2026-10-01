@@ -65,7 +65,9 @@ SARVAM_API_KEY = os.environ.get("SARVAM_API_KEY", "")
 # One env var for the chat model so it can be swapped in a single line.
 # The SDK currently types `model` as Literal["sarvam-105b"]; sarvam-m and
 # sarvam-30b are deprecated and rejected by the Chat Completions API.
-CHAT_MODEL = os.environ.get("SARVAM_CHAT_MODEL", "sarvam-105b")
+# sarvam-105b-conversations answers without a long hidden deliberation: about a second where
+# sarvam-105b took 40-70s on a long policy and often ran out of tokens mid-thought (empty reply).
+CHAT_MODEL = os.environ.get("SARVAM_CHAT_MODEL", "sarvam-105b-conversations")
 
 # Sarvam serves open-weight models (glm5.2, gemma4) on /v2/chat/completions,
 # which the SDK does not type, so those go over a direct HTTP transport. /v2 is
@@ -79,8 +81,8 @@ TRANSLATE_MODEL = os.environ.get("SARVAM_TRANSLATE_MODEL", "sarvam-translate:v1"
 # mayura:v1 handles code-mixed / colloquial better; used for chat-style text.
 TRANSLATE_MODEL_COLLOQUIAL = os.environ.get("SARVAM_TRANSLATE_MODEL_COLLOQUIAL", "mayura:v1")
 STT_MODEL = os.environ.get("SARVAM_STT_MODEL", "saaras:v3")
-TTS_MODEL = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v2")
-TTS_SPEAKER = os.environ.get("SARVAM_TTS_SPEAKER", "anushka")
+TTS_MODEL = os.environ.get("SARVAM_TTS_MODEL", "bulbul:v3")
+TTS_SPEAKER = os.environ.get("SARVAM_TTS_SPEAKER", "priya")
 
 SARVAM_TIMEOUT = _int("SARVAM_TIMEOUT_SECONDS", 120)
 

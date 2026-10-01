@@ -147,8 +147,8 @@ def deliver(user: str, language: str, message: Message) -> None:
     else:
         text = f"{message.text}\n{UNVERIFIED_BADGE}" if message.unverified else message.text
         body = i18n.translate(text, language)
-    send(user, body=body)
-    audio_url = _voice(body, language)
+    send(user, body=body)  # WhatsApp has no chips: the sources stay in the text
+    audio_url = _voice(conversation.without_citations(body), language)  # but are not read aloud
     if audio_url:
         send(user, media_url=audio_url)
 

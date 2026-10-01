@@ -358,6 +358,7 @@ def test_marathi_in_and_out_keeping_amounts_and_citations_untranslated(collectio
 
     source, target, _ = model.translations[0]
     assert (source, target) == ("mr-IN", "en-IN")  # the question went in as English
+    assert f"HER OWN WORDS (mr-IN" in model.prompts[-1] and question in model.prompts[-1]  # and in her words
     out = model.translations[-1][2]
     assert "1%" not in out and "₹5,00,000" not in out and EXAMPLE_INSURER not in out  # protected from translation
     assert result.translated is True
@@ -374,6 +375,79 @@ def test_if_translation_mangles_a_protected_value_the_english_answer_is_sent(col
     result = ask(collection, "रूम भाडे?", language="mr-IN")
     assert result.translated is False
     assert result.text == result.text_en
+
+
+def _drop(token_value_index: int):
+    """A translator that loses the protected token at this position (as Sarvam does with a final citation)."""
+    def translate(text, target, source_language="auto", **kwargs):
+        if target == rag_answer.ENGLISH:
+            return text
+        return f"<{target}>{text.replace(f'ZQ{token_value_index}ZQ', '')}</{target}>"
+    return translate
+
+
+def test_an_empty_model_reply_is_tried_once_more(collection, model, monkeypatch):
+    ask(collection)
+    s = source_number(model, 1)
+    replies = [None, {"answer": f"Room rent is limited to 1% of the sum insured per day {s}.", "sources": [s.strip("[]")]}]
+    monkeypatch.setattr(sarvam, "chat_json", lambda messages, **k: replies.pop(0))
+    assert ask(collection).status == rag_answer.ANSWERED
+    assert replies == []
+
+
+def test_citations_are_kept_out_of_translation_and_put_at_the_end(collection, model, monkeypatch):
+    sent = []
+
+    def translate(text, target, source_language="auto", **kwargs):
+        if target == rag_answer.ENGLISH:
+            return text
+        sent.append(text)
+        return f"<{target}>{text}</{target}>"
+
+    monkeypatch.setattr(sarvam, "translate", translate)
+    ask(collection, "रूम भाडे?", language="mr-IN")  # learn how this question's sources are numbered
+    s = source_number(model, 1)
+    model.reply = {"answer": f"Room rent is limited to 1% of the sum insured per day {s}. It applies daily {s}.",
+                   "sources": [s.strip("[]")]}
+    result = ask(collection, "रूम भाडे?", language="mr-IN")
+    label = f"[{EXAMPLE_INSURER}, policy_wording, p.1]"
+    assert "policy_wording" not in sent[-1] and "ZQ0ZQ" in sent[-1]  # no citation sent to the translator
+    assert result.translated is True and "1%" in result.text
+    assert result.text.endswith(label) and result.text.count(label) == 1
+
+
+def test_a_broken_placeholder_sends_the_english_answer(collection, model, monkeypatch):
+    def translate(text, target, source_language="auto", **kwargs):
+        return text if target == rag_answer.ENGLISH else f"<{target}>{text} ZQ</{target}>"
+
+    monkeypatch.setattr(sarvam, "translate", translate)
+    ask(collection, "रूम भाडे?", language="mr-IN")
+    s = source_number(model, 1)
+    model.reply = {"answer": f"Room rent is limited to 1% of the sum insured per day {s}.", "sources": [s.strip("[]")]}
+    result = ask(collection, "रूम भाडे?", language="mr-IN")
+    assert result.translated is False and result.text == result.text_en
+
+
+def test_a_dropped_amount_still_sends_the_english_answer(collection, model, monkeypatch):
+    monkeypatch.setattr(sarvam, "translate", _drop(0))
+    ask(collection, "रूम भाडे?", language="mr-IN")  # learn how this question's sources are numbered
+    s = source_number(model, 1)
+    model.reply = {"answer": f"Room rent is limited to 1% of the sum insured per day {s}.", "sources": [s.strip("[]")]}  # loses 1%
+    result = ask(collection, "रूम भाडे?", language="mr-IN")
+    assert result.translated is False
+    assert result.text == result.text_en
+
+
+def test_her_question_is_translated_with_the_colloquial_model(collection, model, monkeypatch):
+    calls = []
+
+    def translate(text, target, source_language="auto", colloquial=False, **kwargs):
+        calls.append((source_language, target, colloquial))
+        return text
+
+    monkeypatch.setattr(sarvam, "translate", translate)
+    ask(collection, "माझ्या पॉलिसीत रूम भाड्याची मर्यादा किती आहे?", language="mr-IN")
+    assert calls[0] == ("mr-IN", "en-IN", True)
 
 
 # --- Hard rule: RAG never writes to Facts; the engine never sees RAG ------------
@@ -458,3 +532,72 @@ def test_eval_scores_accuracy_citations_and_refusals():
     assert report["accuracy"] == pytest.approx(2 / 3)
     assert report["citation_rate"] == pytest.approx(1 / 2)
     assert report["correct_refusal_rate"] == 1.0
+
+
+# --- Her own documents (web chat), held in memory ----------------------------------
+
+
+@pytest.fixture
+def hers(monkeypatch):
+    from app.rag import mine
+
+    monkeypatch.setattr(config, "RAG_EMBEDDINGS", "hashing")
+    mine._DOCS.clear()
+    yield mine
+    mine._DOCS.clear()
+
+
+def test_her_document_is_answered_and_cited_by_file_and_page(hers, model):
+    hers.add("case-1", "bike, policy [26-27].pdf", [(1, "Two Wheeler Package Policy. IDV Rs 85,000."),
+                                                    (2, "Own damage cover includes flood and fire.")])
+    found = hers.collection("case-1")
+    try:
+        rag_answer.answer("Is flood covered?", intent="question", insurer=hers.YOUR_DOCUMENT, product=hers.PRODUCT,
+                          collection=found)  # learn the numbering
+        sid = next(line.split("]")[0] + "]" for line in model.prompts[-1].splitlines() if "p.2" in line)
+        model.reply = {"answer": f"Own damage cover includes flood {sid}.", "sources": [sid.strip("[]")]}
+        result = rag_answer.answer("Is flood covered?", intent="question", insurer=hers.YOUR_DOCUMENT,
+                                   product=hers.PRODUCT, collection=found)
+    finally:
+        hers.drop(found)
+    assert result.status == rag_answer.ANSWERED
+    assert result.text.endswith("[Your document, bike policy 26-27 .pdf, p.2].")
+    assert result.unverified is False
+
+
+def test_several_sources_on_one_page_are_cited_once(hers, model):
+    hers.add("case-1", "bike.pdf", [(2, "1. Theft is covered.\n2. Flood is covered.\n3. Fire is covered.")])
+    found = hers.collection("case-1")
+    try:
+        ask_hers = dict(intent="question", insurer=hers.YOUR_DOCUMENT, product=hers.PRODUCT, collection=found)
+        rag_answer.answer("What is covered?", **ask_hers)
+        sids = [line.split("]")[0][1:] for line in model.prompts[-1].splitlines() if line.startswith("[S")]
+        model.reply = {"answer": f"Theft, flood and fire are covered [{sids[0]}][{sids[-1]}].", "sources": sids}
+        result = rag_answer.answer("What is covered?", **ask_hers)
+    finally:
+        hers.drop(found)
+    assert result.text.count("[Your document, bike.pdf, p.2]") == 1
+
+
+def test_her_documents_are_per_case_and_forgotten(hers):
+    hers.add("case-1", "a.pdf", [(1, "text")])
+    assert hers.has("case-1") and not hers.has("case-2")
+    hers.forget("case-1")
+    assert not hers.has("case-1")
+
+
+def test_only_the_last_few_documents_are_held(hers):
+    for n in range(hers.MAX_DOCUMENTS + 2):
+        hers.add("case-1", f"{n}.pdf", [(1, "text")])
+    assert [d.name for d in hers._DOCS["case-1"]][0] == "2.pdf"
+
+
+def test_her_document_is_cut_into_short_chunks(hers):
+    page = "\n".join(f"{n}. Clause {n}: " + "the cover applies " * 12 for n in range(1, 20))
+    hers.add("case-1", "long.pdf", [(1, page)])
+    found = hers.collection("case-1")
+    try:
+        chunks = found.get()["documents"]
+    finally:
+        hers.drop(found)
+    assert len(chunks) > 1 and all(len(c) <= hers.CHUNK_CHARS for c in chunks)

@@ -44,6 +44,11 @@ def test_pre_decision_never_carries_a_grievance_class():
     assert result == Classification("pre_decision", None, "merchant_loan")
 
 
+def test_smalltalk_never_carries_a_grievance_class():
+    result = normalise({"intent": "smalltalk", "grievance_class": "platform/refund", "product": None})
+    assert result == Classification("smalltalk", None, None)
+
+
 def test_motor_policy_is_accepted():
     assert normalise({"intent": "question", "product": "motor_policy"}).product == "motor_policy"
 
@@ -77,6 +82,14 @@ def test_classify_sends_the_prompt_and_the_text(monkeypatch):
     assert result == Classification("grievance", "platform/payment_failed", "health_policy")
     assert seen["messages"][0] == {"role": "system", "content": agent.CLASSIFY_PROMPT}
     assert "Premium was debited twice" in seen["messages"][-1]["content"]
+
+
+def test_a_marathi_message_still_asks_for_english_labels(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(sarvam, "chat_json", lambda messages, **k: seen.setdefault("messages", messages) and None)
+    classify("माझ्या पॉलिसीमध्ये रूम भाड्याची मर्यादा किती आहे?")
+    user = seen["messages"][-1]["content"]
+    assert user.index("रूम भाड्याची") < user.index("in English")  # the instruction comes after her message
 
 
 @pytest.mark.parametrize("reply", [None, [], "not json"])

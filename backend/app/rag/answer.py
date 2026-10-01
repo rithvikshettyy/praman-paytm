@@ -85,9 +85,12 @@ _OUTCOME = re.compile(
     re.IGNORECASE,
 )
 _HER = re.compile(r"\b(?:you|your)\b", re.IGNORECASE)
+_CITATION = r"\[[^\[\]]+, [^\[\]]+, p\.\d+\]"
+_BROKEN_TOKEN = re.compile(r"ZQ\d*|\d+ZQ")  # what is left of a placeholder the translator mangled
+_REPEATED_LABEL = re.compile(r"(" + _CITATION + r")(?:\s*\1)+")
 _PROTECT = re.compile(
-    r"\[[^\[\]]+, [^\[\]]+, p\.\d+\]"  # citations
-    r"|(?:₹|Rs\.?\s?|INR\s?)\d[\d,]*(?:\.\d+)?"  # rupee amounts
+    _CITATION  # citations
+    + r"|(?:₹|Rs\.?\s?|INR\s?)\d[\d,]*(?:\.\d+)?"  # rupee amounts
     r"|\d[\d,]*(?:\.\d+)?\s?(?:%|per cent|percent)"  # percentages
     r"|\d[\d,]*(?:\.\d+)?\s(?:months?|days?|years?|hours?|lakhs?|crores?)\b"  # periods and sums
 )
@@ -124,16 +127,25 @@ def _protect(text: str, literals: tuple[str, ...] = ()) -> tuple[str, dict[str, 
 
 
 def _to_her_language(text_en: str, language: str, literals: tuple[str, ...] = ()) -> tuple[str, bool]:
-    """Translate an English answer; fall back to English if a protected value did not survive."""
+    """Translate an English answer; fall back to English if a protected value did not survive.
+
+    Citations are taken out before translating and put back at the end, once each: the
+    translator dropped or broke them when there were several. Amounts, periods and names
+    stay in place as placeholders; any lost, doubled or broken one sends the English answer.
+    """
     if language == ENGLISH:
         return text_en, False
-    protected, tokens = _protect(text_en, literals)
+    labels = list(dict.fromkeys(re.findall(_CITATION, text_en)))
+    bare = re.sub(r"\s+([.,;:!?।])", r"\1", " ".join(re.sub(_CITATION, " ", text_en).split()))
+    protected, tokens = _protect(bare, literals)
     translated = i18n.translate(protected, language, source_language=ENGLISH)
     if translated == protected or any(translated.count(token) != 1 for token in tokens):
         return text_en, False
     for token, value in tokens.items():
         translated = translated.replace(token, value)
-    return translated, True
+    if _BROKEN_TOKEN.search(translated):
+        return text_en, False
+    return " ".join([translated, *labels]).strip(), True
 
 
 # --- NO_SOURCE ---------------------------------------------------------------
@@ -180,17 +192,23 @@ def answer(
     names: Mapping[str, str] | None = None,
     collection=None,
     k: int | None = None,
+    question_language: str | None = None,
 ) -> Answer:
     """Answer ``question`` from her insurer's documents for her product, or regulation.
 
     ``insurer`` is written as in sources.yaml; ``names`` maps respondent kinds to
-    legal names for the NO_SOURCE handoff (see cases.respondent_names).
+    legal names for the NO_SOURCE handoff (see cases.respondent_names). ``question_language``
+    is the question's own language when it differs from the reply's (default: ``language``).
     """
     if intent != "question":
         raise NotAQuestion(f"RAG answers questions only, not {intent!r}")
     language = language if language in config.SUPPORTED_LANGUAGES else ENGLISH
 
-    question_en = question if language == ENGLISH else i18n.translate(question, ENGLISH, source_language=language)
+    # mayura (colloquial) keeps who-does-what in everyday Marathi questions; the formal model inverted it.
+    asked_in = question_language or language
+    question_en = (
+        question if asked_in == ENGLISH else i18n.translate(question, ENGLISH, source_language=asked_in, colloquial=True)
+    )
     passages = retrieval.retrieve(question_en, insurer=insurer, product=product, k=k, collection=collection)
     if not passages:
         return _no_source(language, product, names)
@@ -198,16 +216,23 @@ def answer(
     numbered = {f"S{i}": passage for i, passage in enumerate(passages, start=1)}
     prompt = "SOURCES\n\n" + "\n\n".join(_source_line(sid, p) for sid, p in numbered.items())
     prompt += f"\n\nQUESTION\n{question_en}"
-    try:
-        payload = sarvam.chat_json(
-            [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=500,
-            default=None,
-        )
-    except Exception as exc:
-        logger.warning("RAG answer failed: %s", exc)
-        payload = None
+    if asked_in != ENGLISH:
+        # Machine translation can drop the key word (चोरी, "theft"); the model reads her own words too.
+        prompt += f"\n\nHER OWN WORDS ({asked_in}; the English above is a machine translation)\n{question}"
+    payload = None
+    for _ in range(2):  # sarvam-105b now and then reasons past its budget and returns nothing; try once more
+        try:
+            payload = sarvam.chat_json(
+                [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=2500,  # reasoning shares this budget; 500 ran out mid-reasoning
+                default=None,
+            )
+        except Exception as exc:
+            logger.warning("RAG answer failed: %s", exc)
+            payload = None
+        if isinstance(payload, dict):
+            break
     if not isinstance(payload, dict):
         return _no_source(language, product, names)
 
@@ -230,9 +255,11 @@ def answer(
 
     def to_labels(match: re.Match) -> str:
         sids = [sid.strip() for sid in match.group(1).split(",") if sid.strip() in numbered]
-        return " ".join(_citation(numbered[sid]).label for sid in sids)
+        return " ".join(dict.fromkeys(_citation(numbered[sid]).label for sid in sids))
 
     text_en = " ".join(_MARKER.sub(to_labels, kept).split())
+    # [S1][S2] on the same page would read "[…, p.2] […, p.2]": say it once.
+    text_en = _REPEATED_LABEL.sub(r"\1", text_en)
     citations = tuple(dict.fromkeys(_citation(numbered[sid]) for sid in cited))
     for citation in citations:
         if citation.label not in text_en:

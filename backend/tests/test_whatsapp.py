@@ -346,3 +346,12 @@ def test_after_deleting_she_starts_fresh_and_is_asked_again(env):
     say(env, text="delete everything")
     texts, _ = say(env, media=1)
     assert texts == [wa.CONSENT_PROMPT]
+
+
+def test_a_cited_answer_keeps_its_sources_in_text_but_not_in_the_voice_note(env):
+    label = "[Example General Insurance, policy_wording, p.1]"
+    message = wa.Message(f"Room rent is limited to 1% of the sum insured per day {label}.",
+                         citations=({"label": label},), localized=True)
+    wa.deliver(USER, "en-IN", message)
+    assert label in env.sent[0].body  # no chips on WhatsApp: the source stays written
+    assert env.spoken[-1].text == "Room rent is limited to 1% of the sum insured per day."

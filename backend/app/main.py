@@ -260,6 +260,7 @@ def delete_case(case_id: str):
         deleted = store.delete_case(conn, case_id)
     finally:
         conn.close()
+    conversation.forget_documents(case_id)
     if deleted is None:
         return JSONResponse({"error": "No such case."}, status_code=404)
     return {"case_id": case_id, "deleted": deleted}
@@ -296,6 +297,8 @@ def _chat_reply(reply: conversation.Reply, speak: bool) -> dict:
     messages = []
     for message in reply.messages:
         text = conversation.render(message, reply.language)
+        if message.citations:  # the sources travel as chips under the message, not inside the sentence
+            text = conversation.without_citations(text)
         messages.append({
             "text": text,
             "unverified": message.unverified,
@@ -312,7 +315,8 @@ def _converse(session_id, text: str, language, insurer, product, speak: bool):
     conn = store.connect()
     try:
         reply = conversation.respond(
-            conn, user, text, language=language, context={"insurer": insurer, "product": product}
+            conn, user, text, language=language, context={"insurer": insurer, "product": product},
+            explain_documents=True,
         )
     finally:
         conn.close()
@@ -338,6 +342,25 @@ def voice_message(
     product: str | None = Form(None),
 ):
     """A recorded voice message: transcribed by Sarvam, answered like chat, and spoken back."""
+    transcript = _transcribe(audio, language)
+    if isinstance(transcript, JSONResponse):
+        return transcript
+    result = _converse(session_id, transcript, language, insurer, product, speak=True)
+    if isinstance(result, JSONResponse):
+        return result
+    return {"transcript": transcript, **result}
+
+
+@app.post("/api/transcribe")
+def transcribe(audio: UploadFile = File(...), language: str | None = Form(None)):
+    """Speech to text only. The chat shows the words for her to check and send; nothing is answered here."""
+    transcript = _transcribe(audio, language)
+    if isinstance(transcript, JSONResponse):
+        return transcript
+    return {"transcript": transcript}
+
+
+def _transcribe(audio: UploadFile, language: str | None) -> str | JSONResponse:
     data = audio.file.read()
     if not data:
         return _bad("The recording is empty.", 422)
@@ -348,10 +371,47 @@ def voice_message(
     transcript = (heard.get("transcript") or "").strip()
     if not transcript:
         return _bad("I could not hear any words in that recording. Please try again.", 422)
-    result = _converse(session_id, transcript, language, insurer, product, speak=True)
-    if isinstance(result, JSONResponse):
-        return result
-    return {"transcript": transcript, **result}
+    return transcript
+
+
+@app.post("/api/chat/upload")
+def chat_upload(
+    files: list[UploadFile] = File(...),
+    session_id: str = Form(...),
+    text: str | None = Form(None),
+    language: str | None = Form(None),
+    insurer: str | None = Form(None),
+    product: str | None = Form(None),
+    speak: bool = Form(False),
+):
+    """Documents sent in the chat, with her message if she wrote one.
+
+    Consent first. Each document is read and kept in memory for questions; her message is
+    answered from them, or, when she wrote none (or only what the document is), each is summarised.
+    """
+    text = (text or "").strip()
+    user = _web_user(session_id)
+    if user is None:
+        return _bad("session_id must be 8 to 64 letters, digits or hyphens.")
+    attachments = []
+    for upload in files:
+        data = upload.file.read()
+        try:
+            mime = documents.validate_upload(data, upload.filename or "upload", upload.content_type)
+        except UploadRejected as exc:
+            return _bad(f"{upload.filename or 'That file'}: {exc}")
+        attachments.append(conversation.Attachment(
+            mime, (lambda d=data: d), caption=text or None, filename=upload.filename,
+        ))
+    conn = store.connect()
+    try:
+        reply = conversation.respond(
+            conn, user, text, attachments=tuple(attachments), language=language,
+            context={"insurer": insurer, "product": product}, explain_documents=True,
+        )
+    finally:
+        conn.close()
+    return _chat_reply(reply, speak)
 
 
 @app.get("/api/policies")
