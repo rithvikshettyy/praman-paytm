@@ -133,15 +133,6 @@ DISTRIBUTOR_LEGAL_NAME = os.environ.get("DISTRIBUTOR_LEGAL_NAME", "").strip()
 # How the Distributor Console's headline names the distributor: "Of N cases, X needed <this>."
 DISTRIBUTOR_SHORT_NAME = os.environ.get("DISTRIBUTOR_SHORT_NAME", "").strip() or "the distributor"
 
-# --- WhatsApp (Twilio) ------------------------------------------------------
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
-# Also signs every inbound webhook; when set, unsigned or forged requests are refused.
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
-TWILIO_WHATSAPP_FROM = os.environ.get("TWILIO_WHATSAPP_FROM", "")  # e.g. whatsapp:+14155238886
-# Where Twilio can reach this server (an ngrok URL in a demo). Needed to check
-# webhook signatures behind a tunnel and to hand Twilio voice-note URLs.
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
-
 # --- App --------------------------------------------------------------------
 CORS_ORIGINS = [
     o.strip()

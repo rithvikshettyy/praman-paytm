@@ -18,13 +18,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from app import cases, config, console, conversation, handoff, readiness, store
-from app.channels import whatsapp
 from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
 from app.core import ladder_engine as le
 from app.core import ladders
 from app.services import documents, drafts, i18n, voice
 from app.services.documents import ExtractionFailed, UploadRejected
+
+sys.path.append(str(config.BACKEND_DIR.parent))  # the whatsapp/ package sits beside backend/
+from whatsapp import meta as whatsapp_meta  # noqa: E402
+from whatsapp import router as whatsapp_router  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +58,9 @@ app.add_middleware(
 
 for problem in config.validate():
     logger.warning("Configuration: %s", problem)
-if not config.TWILIO_AUTH_TOKEN:
-    logger.warning("TWILIO_AUTH_TOKEN is not set: the WhatsApp webhook accepts unsigned requests.")
+for name in whatsapp_meta.configured():
+    logger.warning("WhatsApp: %s is not set (whatsapp/.env); the WhatsApp channel will not work.", name)
+app.include_router(whatsapp_router)
 
 
 @app.exception_handler(UploadRejected)
@@ -159,27 +163,9 @@ def post_checklist(
         conn.close()
 
 
-# --- WhatsApp (Twilio) -------------------------------------------------------
-
-
-@app.post("/api/whatsapp/webhook")
-async def whatsapp_webhook(request: Request, background: BackgroundTasks):
-    """Answer Twilio at once; the reply goes out from a background task."""
-    params = {key: str(value) for key, value in (await request.form()).items()}
-    if config.TWILIO_AUTH_TOKEN:
-        # Twilio signs the public URL it called, not the one a tunnel forwards to.
-        base = config.PUBLIC_BASE_URL or f"{request.url.scheme}://{request.url.netloc}"
-        url = f"{base}{request.url.path}" + (f"?{request.url.query}" if request.url.query else "")
-        if not whatsapp.valid_signature(url, params, request.headers.get("X-Twilio-Signature", ""), config.TWILIO_AUTH_TOKEN):
-            logger.warning("Refused a WhatsApp webhook with a bad signature")
-            return Response(status_code=403)
-    background.add_task(whatsapp.process, whatsapp.parse_inbound(params))
-    return Response("<Response/>", media_type="text/xml")
-
-
 @app.get("/media/{name}")
 def media(name: str):
-    """Spoken replies, for Twilio and the web chat to fetch. Tokens are random and short-lived in memory."""
+    """Spoken replies, for the web chat to fetch. Tokens are random and short-lived in memory."""
     found = voice.get_media(name.rsplit(".", 1)[0])
     if found is None:
         return Response(status_code=404)

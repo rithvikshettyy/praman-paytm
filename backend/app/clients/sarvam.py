@@ -656,7 +656,7 @@ def text_to_speech(
     """Synthesise speech. Returns the SDK payload (base64 audio list).
 
     ``codec`` picks the audio format (e.g. "mp3"); WhatsApp will not play the
-    default WAV, so the WhatsApp channel asks for mp3.
+    default WAV, so the WhatsApp channel asks for opus.
     """
     kwargs = {
         "text": redact(text[:2500]),

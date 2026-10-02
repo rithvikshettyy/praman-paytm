@@ -1,7 +1,7 @@
 """Spoken replies: text-to-speech through Sarvam, held briefly for a channel to fetch.
 
-WhatsApp fetches voice notes from PUBLIC_BASE_URL/media/<token>.mp3; the web
-chat plays the same URL relative to the API. Tokens are random, kept in
+The web chat plays /media/<token>.mp3 relative to the API (WhatsApp uploads its own
+voice notes to Meta). Tokens are random, kept in
 memory only (the last 200), and hold nothing but the spoken reply.
 """
 
