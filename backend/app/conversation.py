@@ -15,9 +15,9 @@ Order of play for one message:
                                      pre_decision -> ask for the document; smalltalk -> the greeting
   6. anything else                -> the checklist status
 
-The web chat also reads what she sends (``explain_documents``): each document is
+The web chat and WhatsApp also read what she sends (``explain_documents``): each document is
 read in full, summarised with citations, and held in memory (rag/mine.py) so her
-questions are answered from it first. WhatsApp keeps the checklist flow.
+questions are answered from it first. Without it, photos fill the checklist.
 """
 
 from __future__ import annotations

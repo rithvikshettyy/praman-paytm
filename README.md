@@ -74,7 +74,7 @@ Three minutes, one phone, in Marathi:
 
 ```mermaid
 flowchart LR
-    WA[WhatsApp via Twilio] --> CONV
+    WA[WhatsApp via Meta Cloud API] --> CONV
     WEB[Web chat and pages] --> API[FastAPI endpoints] --> CONV
     CONV[Conversation<br/>consent, delete, checklist] --> CLS[Classifier<br/>question / grievance / pre-decision]
     CLS -->|question| RAG[RAG answer<br/>cited, sources only]
@@ -146,7 +146,7 @@ Not built yet, and presented as next steps:
   - speech-to-text and text-to-speech;
   - translation and language detection.
 - **Coverage questions:** ChromaDB for search, with local MiniLM embeddings or an offline hashing fallback, and PyMuPDF to read PDFs.
-- **WhatsApp:** Twilio.
+- **WhatsApp:** Meta Cloud API (Graph API v26.0).
 - **Frontend:** Next.js 16 (App Router), TypeScript and Tailwind CSS v4.
 
 ---
@@ -154,11 +154,11 @@ Not built yet, and presented as next steps:
 ## Repository layout
 
 ```
+whatsapp/         WhatsApp channel (Meta Cloud API): webhook, Graph API client, tests
 backend/
   app/
     core/         rule engine, ladders loader, respondent router, classifier (pure where it matters)
     services/     document extraction, drafts, redaction, voice, translation, block normaliser
-    channels/     WhatsApp (Twilio)
     rag/          ingest, retrieve, answer, eval for coverage questions
     conversation.py, cases.py, readiness.py, console.py, store.py, main.py
   data/
@@ -168,7 +168,7 @@ backend/
     eval/         golden questions for the RAG eval
     bill_heads.yaml
   scripts/        seed_demo.py, reset_demo.py, verify_report.py
-  tests/          930 tests, no network
+  tests/          923 tests, no network (WhatsApp tests are in ../whatsapp/tests)
 frontend/         Next.js demo site
 PRD-PAYTM.md      the hackathon build plan
 CLAUDE.md         standing rules and module map for contributors
@@ -259,14 +259,17 @@ python -m app.rag.eval
 
 The corpus ships with one example policy wording, labelled as an example, so the eval runs out of the box. Replace it with real documents.
 
-### WhatsApp (Twilio sandbox)
+### WhatsApp (Meta Cloud API)
 
-1. Expose the backend: `ngrok http 8000`, and put the https URL in `.env` as `PUBLIC_BASE_URL`.
-2. In `.env`, set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_WHATSAPP_FROM` (the sandbox number, `whatsapp:+14155238886`).
-3. In the Twilio console's WhatsApp sandbox settings, set "When a message comes in" to `<PUBLIC_BASE_URL>/api/whatsapp/webhook` (POST).
-4. Join the sandbox from the demo phone, then send a document photo. The reply lists what is still missing, as text and as a voice note in her language.
+All of it lives in `whatsapp/`; the backend mounts it. Settings go in `whatsapp/.env` (copy `whatsapp/.env.example`), separate from `backend/.env`.
 
-With `TWILIO_AUTH_TOKEN` set, the webhook refuses requests without a valid Twilio signature. `PUBLIC_BASE_URL` must be the exact URL Twilio calls, or every signature check fails.
+1. At developers.facebook.com, create an app and add the WhatsApp product. Note the phone number id, and create a permanent system-user token (the test token lasts 24 hours).
+2. Set `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APP_SECRET` (App settings, Basic) and `WA_VERIFY_TOKEN` (any string you choose).
+3. Expose the backend: `ngrok http 8000`.
+4. In WhatsApp, Configuration, set the callback URL to `<ngrok https URL>/api/whatsapp/webhook` and the verify token, then subscribe to `messages`.
+5. Message the number: a document gets read and summarised with citations, questions are answered from it, and a voice note is answered in text and by voice.
+
+The webhook refuses any request without a valid `x-hub-signature-256`, and refuses everything if `WA_APP_SECRET` is unset. Run its tests with the backend's: `python -m pytest` from `backend/`.
 
 ---
 
