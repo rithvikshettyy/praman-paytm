@@ -59,7 +59,7 @@ app.add_middleware(
 for problem in config.validate():
     logger.warning("Configuration: %s", problem)
 for name in whatsapp_meta.configured():
-    logger.warning("WhatsApp: %s is not set (whatsapp/.env); the WhatsApp channel will not work.", name)
+    logger.warning("WhatsApp: %s is not set (backend/.env); the WhatsApp channel will not work.", name)
 app.include_router(whatsapp_router)
 
 

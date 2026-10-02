@@ -11,12 +11,10 @@ import hmac
 import logging
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+from app import config  # noqa: F401  (loads backend/.env: the one env file for the whole service)
 
 logger = logging.getLogger(__name__)
 
