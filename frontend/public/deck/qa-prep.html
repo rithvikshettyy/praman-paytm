@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Praman: Q&A prep (RAG and Sarvam)</title>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Latin:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,700;9..144,800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f6f7f4;--ink:#1c2724;--muted:#5a6763;--line:#d8ddd9;--pine:#1e5b4c;--pine-dark:#164537;--pine-wash:#e5efea;--stamp:#a8321f;--stamp-wash:#f8e8e4;--amber:#9a5f0c;--amber-wash:#f8eedc;
+--serif:"Fraunces",Georgia,serif;--sans:"Anek Latin",ui-sans-serif,system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:18px;line-height:1.5}
+header{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line)}
+.bar{max-width:1040px;margin:0 auto;padding:14px 24px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:800;color:var(--pine-dark);font-size:22px;margin-right:auto}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{font:inherit;font-size:15px;font-weight:600;border:1.5px solid var(--line);background:#fff;color:var(--muted);padding:7px 14px;border-radius:99px;cursor:pointer;transition:.2s}
+nav button:hover{border-color:var(--pine);color:var(--pine)}
+nav button.on{background:var(--pine);border-color:var(--pine);color:#fff}
+main{max-width:1040px;margin:0 auto;padding:36px 24px 90px}
+.page{display:none}.page.on{display:block;animation:in .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.eyebrow{font-weight:600;letter-spacing:.16em;text-transform:uppercase;font-size:13px;color:var(--pine);margin-bottom:8px}
+h1{font-family:var(--serif);font-size:42px;line-height:1.1;margin-bottom:10px}
+h1 em{font-style:normal;color:var(--pine)}
+.lead{color:var(--muted);font-size:20px;margin-bottom:26px;max-width:760px}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch;margin:6px 0 28px}
+.step{flex:1 1 150px;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;font-size:15px;position:relative}
+.step b{display:block;font-family:var(--serif);font-size:17px;margin-bottom:2px}
+.step small{color:var(--muted);font-size:13px;display:block}
+.step .n{position:absolute;top:-10px;left:12px;background:var(--pine);color:#fff;font-size:12px;font-weight:700;width:22px;height:22px;border-radius:50%;display:grid;place-items:center}
+.step.key{background:var(--pine-wash);border-color:#9cc7b9}
+.qa{display:flex;flex-direction:column;gap:12px}
+details{background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:0 20px;transition:.2s}
+details[open]{border-color:#9cc7b9;box-shadow:0 8px 22px #1e5b4c14}
+summary{cursor:pointer;font-weight:600;font-size:19px;padding:15px 0;list-style:none;display:flex;gap:12px;align-items:flex-start}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"Q";flex:none;width:26px;height:26px;border-radius:8px;background:var(--pine-wash);color:var(--pine);font-size:14px;font-weight:800;display:grid;place-items:center;margin-top:1px}
+details[open] summary::before{background:var(--pine);color:#fff}
+.a{padding:0 0 18px 38px;color:#2c3a36}
+.a p+p,.a ul{margin-top:8px}
+.a ul{margin-left:20px}
+.say{margin-top:10px;padding:10px 14px;background:var(--pine-wash);border-left:5px solid var(--pine);border-radius:0 10px 10px 0;font-size:16.5px}
+.say::before{content:"Say it simply: ";font-weight:700;color:var(--pine)}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.88em;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+table{width:100%;border-collapse:separate;border-spacing:0 8px;margin:4px 0 24px;font-size:16px}
+th{text-align:left;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:0 14px 2px}
+td{background:#fff;padding:11px 14px;border-top:1.5px solid var(--line);border-bottom:1.5px solid var(--line);vertical-align:top}
+td:first-child{border-left:1.5px solid var(--line);border-radius:12px 0 0 12px;font-weight:600}
+td:last-child{border-right:1.5px solid var(--line);border-radius:0 12px 12px 0}
+.tag{display:inline-block;font-size:13px;font-weight:600;padding:2px 10px;border-radius:99px;background:var(--amber-wash);color:var(--amber);border:1px solid #e6cd9e}
+.tag.g{background:var(--pine-wash);color:var(--pine);border-color:#b8d6cb}
+.tag.r{background:var(--stamp-wash);color:var(--stamp);border-color:#e9bdb4}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:26px}
+.num{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 16px}
+.num b{font-family:var(--serif);font-size:26px;color:var(--pine);display:block;line-height:1.1}
+.num span{font-size:14px;color:var(--muted)}
+.foot{display:flex;justify-content:space-between;margin-top:30px}
+.foot button{font:inherit;font-weight:600;background:var(--pine);color:#fff;border:0;border-radius:99px;padding:10px 22px;cursor:pointer}
+.foot button:disabled{background:var(--line);color:#9aa5a1;cursor:default}
+@media (max-width:640px){h1{font-size:32px}.a{padding-left:0}}
+@media print{header,.foot{display:none}.page{display:block!important;page-break-after:always}details{break-inside:avoid}details>*{display:block}}
+</style>
+</head>
+<body>
+<header><div class="bar"><div class="brand">Praman · Q&amp;A prep</div>
+<nav id="nav"><button class="on">1 RAG in one minute</button><button>2 RAG questions</button><button>3 Sarvam: what we use</button><button>4 Sarvam questions</button><button>5 Tricky ones</button></nav></div></header>
+<main>
+
+<!-- 1 -->
+<section class="page on">
+  <div class="eyebrow">Page 1 of 5</div>
+  <h1>RAG in <em>one minute.</em></h1>
+  <p class="lead">RAG answers coverage questions only ("what is the room rent limit in my policy?"). It looks up the policy text first, then writes the answer from that text, with a citation. It never decides a claim.</p>
+  <div class="flow">
+    <div class="step"><span class="n">1</span><b>Question</b>Any of 11 languages<small>translated to English (mayura, everyday style)</small></div>
+    <div class="step key"><span class="n">2</span><b>Retrieve</b>Top 6 passages<small>the user's insurer + product, plus regulation and news</small></div>
+    <div class="step key"><span class="n">3</span><b>Answer</b>Model sees only those passages<small>cites as [S1], [S2]</small></div>
+    <div class="step key"><span class="n">4</span><b>Check</b>No valid citation = NO_SOURCE<small>promise sentences removed</small></div>
+    <div class="step"><span class="n">5</span><b>Translate back</b>Amounts, % and citations protected<small>sarvam-translate</small></div>
+  </div>
+  <div class="nums">
+    <div class="num"><b>Chroma</b><span>vector store, cosine distance</span></div>
+    <div class="num"><b>MiniLM</b><span>embeddings (offline hashing fallback)</span></div>
+    <div class="num"><b>2500 / 300</b><span>chunk size / overlap, split on clause headings first</span></div>
+    <div class="num"><b>Top 6</b><span>passages sent to the model</span></div>
+  </div>
+  <div class="qa">
+    <details open><summary>What is the knowledge base today?</summary><div class="a"><p>Three layers, all stored in one Chroma index with metadata (layer, insurer, product, doc type, page, source, date, verified_by):</p><ul><li><b>Policy documents:</b> one labelled <b>example</b> policy wording so far. Listed in <code>sources.yaml</code>.</li><li><b>Regulation:</b> built and tested, but no real circulars loaded yet. The folder only has a README.</li><li><b>News:</b> live. Refreshed from allowlisted feeds (see page 2).</li></ul><div class="say">The pipeline is real and tested. Policies and circulars are example or still to be loaded; news is live.</div></div></details>
+    <details><summary>Where do the government rules (IRDAI, RBI) actually live?</summary><div class="a"><p>Two places, on purpose:</p><ul><li><b>Rule engine:</b> the numbers it acts on (60-month moratorium, 36-month pre-existing disease cap, room-cap deduction) sit in <code>insurance_health_claim.yaml</code>, each with a source note, all <span class="tag">UNVERIFIED</span> for now. The engine does not search text.</li><li><b>RAG regulation layer:</b> for quoting the circular itself with a page citation, once the real PDFs are added.</li></ul><p>Do not say the knowledge base already holds the circulars. It does not yet.</p></div></details>
+    <details><summary>What is the citation, and who writes it?</summary><div class="a"><p>The label <code>[Example General Insurance, policy_wording, p.2]</code> is built by our code from the stored metadata of the retrieved chunk. The model only says "S2". It cannot invent a page or a source.</p></div></details>
+    <details><summary>What if the answer is not in the documents?</summary><div class="a"><p>The answer becomes <b>NO_SOURCE</b>: "I could not find this, so I will not guess." The router then offers a written coverage question to the user's insurer by its legal name. The same happens if the model gives no citation, the retrieval is empty, or the model call fails.</p></div></details>
+  </div>
+  <div class="foot"><button disabled>‹ Back</button><button data-go="1">Next ›</button></div>
+</section>
+
+<!-- 2 -->
+<section class="page">
+  <div class="eyebrow">Page 2 of 5</div>
+  <h1>Questions about <em>the RAG.</em></h1>
+  <p class="lead">Likely questions from judges, with a short honest answer for each.</p>
+  <div class="qa">
+    <details><summary>Why RAG and not just ask the model, or fine-tune it?</summary><div class="a"><p>A policy changes by insurer, product and year. Fine-tuning cannot keep up and cannot cite a page. With RAG the answer comes from the user's own insurer's wording and points to the page, so it can be checked.</p><div class="say">The model reads the policy, it does not remember policies.</div></div></details>
+    <details><summary>How do you stop hallucination?</summary><div class="a"><ul><li>The prompt says "use ONLY the numbered sources", temperature 0.</li><li>Amounts and periods are copied, not calculated.</li><li>No valid citation means NO_SOURCE.</li><li>Sentences that promise approval or payment ("will be approved", "guaranteed") are dropped in code.</li></ul><p>This lowers the risk. It does not make it zero, which is why every answer carries its page and a "Did this solve it?" Yes/No.</p></div></details>
+    <details><summary>Why only the user's insurer's documents?</summary><div class="a"><p>Retrieval is filtered to the user's insurer and product, plus regulation. Another insurer's wording is never used. With no insurer and product known, only regulation is searched.</p></div></details>
+    <details><summary>How do you chunk, and why?</summary><div class="a"><p>PDFs are read page by page (PyMuPDF). Each page is split on clause headings so one clause stays whole. If a page has no headings or a clause is too long, we use 2500-character windows with 300 overlap. Chunk ids are stable (<code>file#p2#c1</code>), and a re-run only re-ingests files whose bytes or metadata changed.</p></div></details>
+    <details><summary>Does RAG decide the claim or change the verdict?</summary><div class="a"><p>No. RAG never writes to the fact sheet and the engine never imports RAG. A test checks this. Any number RAG surfaces must go through the confidence gate and the user's confirmation before the engine can use it.</p><div class="say">RAG explains. The engine decides.</div></div></details>
+    <details><summary>What about documents the user uploads?</summary><div class="a"><p>In the web chat, an uploaded policy is read in full and held <b>in memory only</b> (up to 5 per case). Smaller chunks (1000 characters), top 10. Answers cite <code>[Your document, file, p.X]</code>. It is dropped on "delete everything" or a server restart. It carries no "not verified" badge because it is the user's own paper, not a legal value of ours.</p></div></details>
+    <details><summary>How does the news layer work?</summary><div class="a"><ul><li><b>Sources:</b> an allowlist of https feeds only: RBI press releases and notifications (official), Economic Times and Mint (news outlets).</li><li><b>What is read:</b> only the title and summary, never the article page.</li><li><b>Filter:</b> kept only if it mentions words like insurance, IRDAI, ombudsman, grievance. Items expire after 180 days.</li><li><b>Freshness:</b> a background job refreshes every 60 minutes. A re-run adds nothing twice (the id comes from the link). One feed failing does not stop the others.</li></ul><div class="say">Near real time, not instant: it checks every hour.</div></div></details>
+    <details><summary>Can news be mistaken for the rule or the policy?</summary><div class="a"><p>We built against that:</p><ul><li>News is a separate layer, always <span class="tag">UNVERIFIED</span>, cited like <code>[Economic Times, news 2026-10-02, p.1]</code>.</li><li>Any answer citing news ends with a note: it is from a press report, not the policy or the rule, so check the original.</li><li>The prompt tells the model to say "reported by" and never present news as a policy term.</li><li>At most 2 news passages per answer, so news cannot push out the user's own policy.</li><li>News never reaches the rule engine or the verdict.</li></ul></div></details>
+    <details><summary>Why is IRDAI not in the news feeds?</summary><div class="a"><p>IRDAI publishes no RSS feed (we checked). Its circulars go in as PDFs in the regulation layer instead, listed in <code>sources.yaml</code> with <code>verified_by</code>. RBI has working feeds, so those are the official source for now.</p></div></details>
+    <details><summary>How do you test it?</summary><div class="a"><p>An eval file with 5 golden questions (one in Marathi, one expected to be NO_SOURCE). Each says what the answer must contain and which page it must cite. All RAG and news tests run offline with hashing embeddings, with Sarvam faked and feeds supplied as plain text.</p><p>Be careful: 5 questions is a smoke test, not an accuracy figure. We quote no accuracy percentage.</p></div></details>
+  </div>
+  <div class="foot"><button data-go="0">‹ Back</button><button data-go="2">Next ›</button></div>
+</section>
+
+<!-- 3 -->
+<section class="page">
+  <div class="eyebrow">Page 3 of 5</div>
+  <h1>Sarvam: <em>what we use it for.</em></h1>
+  <p class="lead">Every AI call goes through one file, <code>app/clients/sarvam.py</code>. No other module imports the Sarvam SDK, and the key never reaches the frontend.</p>
+  <table>
+    <tr><th>Job</th><th>Model</th><th>Where</th></tr>
+    <tr><td>Chat and classify</td><td><code>sarvam-105b-conversations</code></td><td>Classifier (question / grievance / pre-decision), RAG answer</td></tr>
+    <tr><td>Read documents</td><td>Document AI (digitise, extract)</td><td>Policy, bill and checklist photos; max 10 pages per job, so files are split into batches</td></tr>
+    <tr><td>Translate</td><td><code>sarvam-translate:v1</code>, and <code>mayura:v1</code> for everyday speech</td><td>Answers back to the user's language; their questions to English; the whole site in 11 languages</td></tr>
+    <tr><td>Speech to text</td><td><code>saaras:v3</code></td><td>Voice notes become text to check before sending</td></tr>
+    <tr><td>Text to speech</td><td><code>bulbul:v3</code> (voice "priya")</td><td>Spoken replies on web and WhatsApp</td></tr>
+    <tr><td>Language ID</td><td>Sarvam language detection</td><td>Which language the user wrote in</td></tr>
+  </table>
+  <div class="qa">
+    <details open><summary>Why Sarvam?</summary><div class="a"><p>It covers all 11 languages we ship for chat, reading documents, translation, speech in and speech out with one vendor and one client. For this track the point is Indian languages first.</p></div></details>
+    <details><summary>What does the model NOT do?</summary><div class="a"><p>It does not do money or date arithmetic, rule checks, or routing. Those are in the pure Python engine and router, with no LLM. Sarvam classifies, reads, translates, speaks, and writes the cited answer.</p></div></details>
+    <details><summary>Where is Sarvam used in the claim check?</summary><div class="a"><p>Only to read the documents (Doc AI) and to phrase things in the user's language. The deduction itself, such as ₹35,625 on the example bill, is computed by the engine.</p></div></details>
+  </div>
+  <div class="foot"><button data-go="1">‹ Back</button><button data-go="3">Next ›</button></div>
+</section>
+
+<!-- 4 -->
+<section class="page">
+  <div class="eyebrow">Page 4 of 5</div>
+  <h1>Questions about <em>Sarvam.</em></h1>
+  <p class="lead">The engineering choices, and the problems we hit and fixed.</p>
+  <div class="qa">
+    <details><summary>Why <code>sarvam-105b-conversations</code> and not <code>sarvam-105b</code>?</summary><div class="a"><p>We measured it. <code>sarvam-105b</code> reasoned for 40 to 70 seconds on a long policy and sometimes returned an empty reply when it ran out of tokens. The conversations model answers in about a second. The RAG step also retries once if the reply comes back empty, and falls to NO_SOURCE if it still fails.</p></div></details>
+    <details><summary>Does translation damage numbers and legal terms?</summary><div class="a"><p>It can, so we protect them. Amounts, percentages, periods, citations and legal names are swapped for placeholders like <code>[[0]]</code> before translating and put back after. If any placeholder is lost or doubled, we show the English answer instead of a wrong one. Citations are removed before translating and added back once each.</p></div></details>
+    <details><summary>Why two translation models?</summary><div class="a"><p>The formal model inverted who-does-what in everyday Marathi questions. <code>mayura</code> handles colloquial speech better, so questions use it. Answers use the formal model. Whole-page translation also has a small glossary for words the formal model gets wrong (policy, case) and a disk cache.</p></div></details>
+    <details><summary>What data leaves the process?</summary><div class="a"><p>All text sent to Sarvam passes through <code>redact()</code> first: Aadhaar, PAN, account numbers (9 to 18 digits) and policy or claim numbers are masked. This is applied inside the client, so a new feature cannot skip it.</p><p><b>Limit:</b> a photo sent to Doc AI is an image and cannot be masked. That is why consent is asked, in the user's language, before any document is read.</p></div></details>
+    <details><summary>What happens when Sarvam is slow, rate limited or down?</summary><div class="a"><ul><li>Doc AI has a rate limiter set one below the documented 10 per minute, so bursts queue instead of failing.</li><li>Calls are clamped to the plan's token ceiling.</li><li>Translation failure returns the English answer.</li><li>RAG failure returns NO_SOURCE with the coverage-query handoff.</li><li>Tests fake Sarvam, so none touches the network.</li></ul></div></details>
+    <details><summary>Does it work without a Sarvam key?</summary><div class="a"><p>The health check reports 503 until the key is set. For the demo, <code>USE_DOC_FIXTURES=true</code> serves the labelled example policy and bill instead of live Doc AI.</p></div></details>
+  </div>
+  <div class="foot"><button data-go="2">‹ Back</button><button data-go="4">Next ›</button></div>
+</section>
+
+<!-- 5 -->
+<section class="page">
+  <div class="eyebrow">Page 5 of 5</div>
+  <h1>The tricky ones, <em>answered honestly.</em></h1>
+  <p class="lead">Questions that test whether we overclaim. Short true answers win.</p>
+  <div class="qa">
+    <details open><summary>"How accurate is it?"</summary><div class="a"><p>We do not quote an accuracy number. We have 5 golden questions for RAG and 978 backend tests, but no large evaluation on real policies yet. The design limits damage instead: cited answers, NO_SOURCE when unsure, and a person can be asked for.</p></div></details>
+    <details><summary>"Is the regulation content correct?"</summary><div class="a"><p>Not yet verified, and we say so. Every legal value has <code>verified_by</code>, still <span class="tag">UNVERIFIED</span> until a named person checks the source. It shows on screen as a "Not yet verified" badge. <code>verify_report.py</code> lists each one with file and line.</p></div></details>
+    <details><summary>"Is the news reliable? Could it mislead a user?"</summary><div class="a"><p>News can be wrong or out of date, so it is treated as context only. It is labelled in every answer, marked not verified, capped at 2 passages, and cannot change any number the rule engine uses. Official announcements (RBI) are separated from news outlets in the source list, but nothing is auto-verified.</p></div></details>
+    <details><summary>"Is it real time?"</summary><div class="a"><p>Near real time. The feeds are checked every 60 minutes and new items are searchable straight away. It is not a live stream, and it only knows what the feeds publish.</p></div></details>
+    <details><summary>"Did you build a chatbot?"</summary><div class="a"><p>The chat is the front door. Behind it, a rule engine refuses a claim that will be stopped, a router names who owes the answer, and a console counts results from events. RAG is one branch, only for coverage questions.</p></div></details>
+    <details><summary>"Can it say my claim will be approved?"</summary><div class="a"><p>No. The prompt forbids it, and a code filter drops sentences that promise approval or payment. Nothing is filed either: drafts say "Approved and ready to send".</p></div></details>
+    <details><summary>"What was built in this hackathon versus before?"</summary><div class="a"><p>Disclosed upfront: the Sarvam client, Doc AI intake, config and translation cache were ported from the earlier Praman repo. Built for this: the claim readiness engine, router, checklist, drafts, console, RAG and the web demo.</p></div></details>
+    <details><summary>"What next?"</summary><div class="a"><p>Add more official sources, load real policy wordings and regulation into the corpus and verify them by hand, grow the eval set, then the lending ruleset, motor ruleset and deadline reminders.</p></div></details>
+    <details><summary>"You are a distributor: how does Praman help us?"</summary><div class="a"><p>Cases that belong to the insurer go straight to the insurer, so they never reach the distributor's desk. The console shows "Of N cases, X needed the distributor", counted from events. We invent no savings figure: multiply by your own cost per ticket.</p></div></details>
+  </div>
+  <div class="foot"><button data-go="3">‹ Back</button><button disabled>Done</button></div>
+</section>
+
+</main>
+<script>
+(function(){
+  var pages=[].slice.call(document.querySelectorAll('.page')),tabs=[].slice.call(document.querySelectorAll('#nav button'));
+  function go(i){i=Math.max(0,Math.min(pages.length-1,i));pages.forEach(function(p,k){p.classList.toggle('on',k===i)});tabs.forEach(function(t,k){t.classList.toggle('on',k===i)});scrollTo(0,0);try{history.replaceState(null,'','#'+(i+1))}catch(e){}}
+  tabs.forEach(function(t,i){t.onclick=function(){go(i)}});
+  [].slice.call(document.querySelectorAll('[data-go]')).forEach(function(b){b.onclick=function(){go(+b.dataset.go)}});
+  addEventListener('keydown',function(e){var c=tabs.findIndex(function(t){return t.classList.contains('on')});if(e.key==='ArrowRight')go(c+1);if(e.key==='ArrowLeft')go(c-1)});
+  var h=parseInt(location.hash.slice(1),10);if(h)go(h-1);
+})();
+</script>
+</body>
+</html>
