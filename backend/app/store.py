@@ -163,9 +163,17 @@ MIGRATIONS = {
 }
 
 
-# Setting up the schema drops and re-creates the console view; two requests doing that at once
-# (the console fetches its counters and its case list together) failed with "view already exists".
+# Two requests setting up the schema at once (the console fetches its counters and its case list
+# together) failed with "view already exists", and a request reading while another dropped the view
+# failed with "no such table: console_cases". So the view is only rebuilt when its definition has
+# changed, and then as one atomic step, so a reader sees the old view or the new one, never none.
 _SETUP_LOCK = threading.Lock()
+_VIEW_SQL = "CREATE VIEW " + CONSOLE_VIEW.split("CREATE VIEW", 1)[1].strip().rstrip(";").strip()
+
+
+def _view_is_current(conn: sqlite3.Connection) -> bool:
+    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'console_cases'").fetchone()
+    return row is not None and " ".join(row["sql"].split()) == " ".join(_VIEW_SQL.split())
 
 
 def connect(path: Path | str | None = None) -> sqlite3.Connection:
@@ -177,7 +185,8 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     with _SETUP_LOCK:
         conn.executescript(SCHEMA)
         _migrate(conn)
-        conn.executescript(CONSOLE_VIEW)
+        if not _view_is_current(conn):
+            conn.executescript(f"BEGIN IMMEDIATE;{CONSOLE_VIEW}COMMIT;")
     return conn
 
 

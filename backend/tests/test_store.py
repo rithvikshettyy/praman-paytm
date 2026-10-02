@@ -98,3 +98,28 @@ def test_many_connections_at_once_do_not_trip_over_the_console_view(tmp_path):
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         assert list(pool.map(open_and_read, range(64))) == [0] * 64
+
+
+def test_the_console_view_is_left_alone_when_it_is_current(tmp_path):
+    """Opening the store must not drop the view out from under another request's query."""
+    path = tmp_path / "praman.db"
+    store.connect(path).close()
+    conn = store.connect(path)
+    conn.set_trace_callback(lambda sql: statements.append(sql))
+    statements = []
+    store.connect(path).close()
+    assert not any("DROP VIEW" in sql for sql in statements)
+    conn.close()
+
+
+def test_an_out_of_date_console_view_is_rebuilt(tmp_path):
+    path = tmp_path / "praman.db"
+    first = store.connect(path)
+    first.executescript("DROP VIEW console_cases; CREATE VIEW console_cases AS SELECT 1 AS case_id;")
+    first.close()
+    conn = store.connect(path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM console_cases").fetchone()[0] == 0
+        assert "agent_status" in [row["name"] for row in conn.execute("PRAGMA table_info(console_cases)")]
+    finally:
+        conn.close()
