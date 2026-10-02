@@ -9,6 +9,7 @@ Run from backend/:  uvicorn app.main:app --reload --port 8000
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 import re
 import sys
 
@@ -34,7 +35,16 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-app = FastAPI(title="Praman")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    from app.rag import news
+
+    if news.start_background():
+        logger.info("News layer refreshes every %d minutes.", config.NEWS_REFRESH_MINUTES)
+    yield
+
+
+app = FastAPI(title="Praman", lifespan=lifespan)
 # Only the frontend's origin (CORS_ORIGINS, default the Next.js dev server) may call the API from a browser.
 app.add_middleware(
     CORSMiddleware,

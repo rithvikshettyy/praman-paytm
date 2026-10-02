@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 ANSWERED = "answered"
 NO_SOURCE = "no_source"
 UNVERIFIED = "UNVERIFIED"
+NEWS_NOTE = "This is from a news or press report. It is not your policy and not the rule itself, so check the original."
 ENGLISH = "en-IN"
 
 
@@ -64,12 +65,14 @@ class Answer:
     handoff: dict | None  # NO_SOURCE only: where the N5 router sends the question next
     language: str
     translated: bool
+    news: bool = False  # a cited source is a news or press report, not the policy or the rule itself
 
 
 SYSTEM_PROMPT = """You answer a policyholder's question about her insurance using ONLY the numbered sources you are given.
 
 Rules:
 - Use only what the sources say. If they do not answer the question, reply with exactly {"answer": "NO_SOURCE", "sources": []}.
+- A source marked "news" is a press report. It is not the policy and not the rule: say "reported by" and never present it as a term of her policy.
 - Cite every statement with the numbers of the sources it comes from, written like [S2].
 - Never say or suggest that a claim will be approved, accepted or paid. Explain what the documents say; the insurer decides.
 - Copy amounts, percentages and time periods exactly as the source states them. Do not calculate anything.
@@ -268,6 +271,10 @@ def answer(
         if citation.label not in text_en:
             text_en = f"{text_en} {citation.label}"
 
+    news = any(numbered[sid].layer == "news" for sid in cited)
+    if news:
+        text_en = f"{text_en} {NEWS_NOTE}"
+
     text, translated = _to_her_language(text_en, language)
     return Answer(
         status=ANSWERED,
@@ -278,4 +285,5 @@ def answer(
         handoff=None,
         language=language,
         translated=translated,
+        news=news,
     )

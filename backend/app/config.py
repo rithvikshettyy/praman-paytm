@@ -119,6 +119,12 @@ RAG_EMBEDDINGS = os.environ.get("RAG_EMBEDDINGS", "default").strip().lower()
 RAG_TOP_K = _int("RAG_TOP_K", 6)
 RAG_CHUNK_CHARS = _int("RAG_CHUNK_CHARS", 2500)
 RAG_CHUNK_OVERLAP = _int("RAG_CHUNK_OVERLAP", 300)
+# News layer: headlines and summaries from an allowlist of feeds (data/news_sources.yaml), refreshed in
+# the background every NEWS_REFRESH_MINUTES (0 = off). Never written to the fact sheet or the engine.
+NEWS_SOURCES_FILE = DATA_DIR / "news_sources.yaml"
+NEWS_REFRESH_MINUTES = _int("NEWS_REFRESH_MINUTES", 0)
+NEWS_MAX_AGE_DAYS = _int("NEWS_MAX_AGE_DAYS", 180)  # older items are removed at the next refresh
+NEWS_MAX_PASSAGES = _int("NEWS_MAX_PASSAGES", 2)  # at most this many news passages in one answer's sources
 
 # --- Respondents ------------------------------------------------------------
 # Legal name drafts are addressed to when the distributor owes the answer.

@@ -1,0 +1,45 @@
+# Allowlist for the news layer (app/rag/news.py). Only these https feeds are read, and only the
+# feed's own title and summary: no article page is fetched.
+#
+#   kind   official = a regulator's own announcements; outlet = a news site's report
+#
+# News is context, never the rule: an answer built on it says so, carries the "not yet verified"
+# badge, and cannot change the rule engine. To check or add a feed:  python -m app.rag.news
+#
+# IRDAI publishes no RSS feed (checked 2026-10-02); its circulars still go into corpus/regulation/
+# as PDFs listed in corpus/sources.yaml.
+
+# An item is kept when its title or summary contains one of these words (matched at a word start).
+keywords:
+  - insurance
+  - insurer
+  - irdai
+  - policyholder
+  - mediclaim
+  - health cover
+  - claim settlement
+  - ombudsman
+  - grievance
+  - digital lending
+  - key fact statement
+
+feeds:
+  - id: rbi_press
+    name: RBI press release
+    kind: official
+    feed_url: https://rbi.org.in/pressreleases_rss.xml
+
+  - id: rbi_notifications
+    name: RBI notification
+    kind: official
+    feed_url: https://www.rbi.org.in/notifications_rss.xml
+
+  - id: et_finance
+    name: Economic Times
+    kind: outlet
+    feed_url: https://economictimes.indiatimes.com/industry/banking/finance/insure/rssfeeds/13358259.cms
+
+  - id: mint_insurance
+    name: Mint
+    kind: outlet
+    feed_url: https://www.livemint.com/rss/insurance

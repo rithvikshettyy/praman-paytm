@@ -58,9 +58,11 @@ class Passage:
 
 
 def _where(insurer: str | None, product: str | None) -> dict:
+    """Regulation and news for everyone; her insurer's documents only when both are known."""
+    shared = [{"layer": "regulation"}, {"layer": "news"}]
     if insurer and product:
-        return {"$or": [{"$and": [{"insurer": insurer}, {"product": product}]}, {"layer": "regulation"}]}
-    return {"layer": "regulation"}
+        return {"$or": [{"$and": [{"insurer": insurer}, {"product": product}]}, *shared]}
+    return {"$or": shared}
 
 
 def retrieve(
@@ -110,4 +112,12 @@ def retrieve(
     for passage in passages:  # nearest first; a near-copy of one already kept adds nothing
         if not any(_same_text(passage.text, kept.text) for kept in distinct):
             distinct.append(passage)
-    return distinct[:k]
+    # News is context, not the policy or the rule: it never crowds the documents out of the sources.
+    kept, news = [], 0
+    for passage in distinct:
+        if passage.layer == "news":
+            if news >= config.NEWS_MAX_PASSAGES:
+                continue
+            news += 1
+        kept.append(passage)
+    return kept[:k]
