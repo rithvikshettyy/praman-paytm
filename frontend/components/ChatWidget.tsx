@@ -18,6 +18,8 @@ interface Item {
   citations?: ChatMessage["citations"];
   audioUrl?: string | null;
   files?: string[]; // documents she sent with this message
+  feedback?: ChatMessage["feedback"]; // ask "Did this solve it?" under this message
+  rated?: boolean; // she has answered it
 }
 
 let nextId = 1;
@@ -140,11 +142,31 @@ export function ChatWidget() {
       unverified: m.unverified,
       citations: m.citations,
       audioUrl: m.audio_url,
+      feedback: m.feedback,
     }));
     setItems((current) => [...current, ...answers]);
     if (reply.case_id === null) renewCase(); // she deleted everything: the next message starts a new case
     const firstAudio = answers.find((a) => a.audioUrl)?.audioUrl;
     if (autoplay && firstAudio) play(firstAudio);
+  }
+
+  // "Did this solve it?": a Yes is counted for the distributor; a No asks for a person, who gets a brief.
+  async function rate(item: Item, solved: boolean) {
+    if (!item.feedback || item.rated || !sessionId) return;
+    const mine = round.current;
+    setItems((current) => current.map((i) => (i.id === item.id ? { ...i, rated: true } : i)));
+    setError(null);
+    try {
+      const reply = await api<ChatReply>("/api/feedback", {
+        method: "POST",
+        json: { session_id: sessionId, answer_id: item.feedback.answer_id, solved, language },
+      });
+      if (mine === round.current) showReply(reply, false);
+    } catch (err) {
+      if (mine !== round.current) return;
+      setItems((current) => current.map((i) => (i.id === item.id ? { ...i, rated: false } : i)));
+      setError(errorText(err));
+    }
   }
 
   async function sendText(event: FormEvent) {
@@ -353,7 +375,7 @@ export function ChatWidget() {
           </p>
         )}
         {items.map((item) => (
-          <div key={item.id} className={item.from === "you" ? "flex justify-end" : "flex justify-start"}>
+          <div key={item.id} className={`flex flex-col gap-1.5 ${item.from === "you" ? "items-end" : "items-start"}`}>
             <div
               translate="no"
               className={`max-w-[85%] rounded-lg px-3 py-2 text-[15px] leading-relaxed ${
@@ -392,6 +414,29 @@ export function ChatWidget() {
                 </div>
               )}
             </div>
+            {item.feedback && !item.rated && (
+              <div className="flex max-w-[85%] flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted">
+                  {item.feedback.kind === "answer" ? "Did this solve it?" : "Want a person to look at this?"}
+                </span>
+                {item.feedback.kind === "answer" && (
+                  <button
+                    type="button"
+                    onClick={() => void rate(item, true)}
+                    className="rounded-full border border-pine/40 bg-pine-wash px-3 py-1 font-medium text-pine-dark hover:bg-pine hover:text-white"
+                  >
+                    Yes
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void rate(item, false)}
+                  className="rounded-full border border-line bg-white px-3 py-1 font-medium text-ink hover:border-pine hover:text-pine"
+                >
+                  {item.feedback.kind === "answer" ? "No, I need help" : "Yes, get me help"}
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {busy && <p className="text-sm text-muted">Praman is replying…</p>}

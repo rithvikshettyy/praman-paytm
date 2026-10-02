@@ -197,6 +197,8 @@ def ingest(corpus_dir: Path | None = None, collection=None) -> IngestReport:
     indexed: dict[str, str] = {}
     existing = collection.get(include=["metadatas"])
     for meta in existing["metadatas"] or []:
+        if meta.get("layer") == "news":  # owned by rag/news.py, not by sources.yaml
+            continue
         indexed.setdefault(meta["file"], meta.get("file_hash", ""))
 
     for source in sources:

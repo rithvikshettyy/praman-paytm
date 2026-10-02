@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Praman: pitch deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@400;600;800&family=Anek+Latin:wght@300;400;600;800&family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f6f7f4; --ink:#1c2724; --muted:#5a6763; --line:#d8ddd9;
+  --pine:#1e5b4c; --pine-dark:#164537; --pine-wash:#e5efea;
+  --stamp:#a8321f; --stamp-wash:#f8e8e4; --amber:#9a5f0c; --amber-wash:#f8eedc;
+  --serif:"Fraunces",Georgia,serif;
+  --sans:"Anek Latin","Anek Devanagari",ui-sans-serif,system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#101a17;font-family:var(--sans);color:var(--ink);font-feature-settings:"tnum" 1}
+#viewport{position:fixed;inset:0;display:grid;place-items:center}
+#stage{width:1920px;height:1080px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);transform-origin:center;flex:none;background:var(--paper);overflow:hidden;border-radius:6px;box-shadow:0 30px 120px #0008}
+
+/* ---------- slides ---------- */
+.slide{position:absolute;inset:0;padding:96px 120px 120px;display:flex;flex-direction:column;visibility:hidden;opacity:0;transition:opacity .5s var(--ease),visibility 0s .5s}
+.slide.active{visibility:visible;opacity:1;transition:opacity .5s var(--ease)}
+.slide.dark{background:var(--pine-dark);color:#f2f6f3}
+.slide.dark .eyebrow{color:#9fd1c0}
+.slide.dark .muted{color:#b8cdc5}
+.eyebrow{font-weight:600;letter-spacing:.18em;text-transform:uppercase;font-size:22px;color:var(--pine);margin-bottom:22px;display:flex;gap:14px;align-items:center}
+.eyebrow::before{content:"";width:46px;height:3px;background:currentColor;border-radius:2px}
+h1,h2,h3{font-family:var(--serif);font-weight:700;letter-spacing:-.01em;line-height:1.05}
+h2{font-size:78px;max-width:1500px}
+h2 em{font-style:normal;color:var(--pine)} .dark h2 em{color:#8fe0c4}
+.sub{font-size:32px;color:var(--muted);margin-top:22px;max-width:1350px;line-height:1.35}
+.muted{color:var(--muted)}
+.body{flex:1;display:flex;align-items:center;gap:60px;margin-top:40px;min-height:0}
+.badge{display:inline-flex;align-items:center;gap:8px;font-size:20px;font-weight:600;padding:6px 14px;border-radius:99px;background:var(--amber-wash);color:var(--amber);border:1.5px solid #e6cd9e;white-space:nowrap}
+.badge.pine{background:var(--pine-wash);color:var(--pine);border-color:#b8d6cb}
+.badge.red{background:var(--stamp-wash);color:var(--stamp);border-color:#e9bdb4}
+.note{font-size:20px;color:var(--muted)}
+.footer-credit{position:absolute;left:120px;right:120px;bottom:62px;font-size:18px;color:var(--muted);display:flex;justify-content:space-between}
+.dark .footer-credit{color:#a5bdb4}
+
+/* ---------- reveal ---------- */
+.rv{opacity:0;transform:translateY(34px)}
+.active .rv{animation:rise .8s var(--ease) forwards;animation-delay:calc(var(--i,0)*110ms + 150ms)}
+.rv.pop{transform:scale(.8)}
+.active .rv.pop{animation-name:pop;animation-timing-function:cubic-bezier(.3,1.5,.5,1)}
+.rv.left{transform:translateX(-60px)} .active .rv.left{animation-name:fromLeft}
+.rv.right{transform:translateX(60px)} .active .rv.right{animation-name:fromRight}
+@keyframes rise{to{opacity:1;transform:none}}
+@keyframes pop{to{opacity:1;transform:none}}
+@keyframes fromLeft{to{opacity:1;transform:none}}
+@keyframes fromRight{to{opacity:1;transform:none}}
+
+/* ---------- 1 title ---------- */
+#s1{justify-content:center}
+#s1 .bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+#s1 .orb{position:absolute;border-radius:50%;filter:blur(2px);opacity:.5}
+#s1 .o1{width:760px;height:760px;right:-160px;top:-200px;background:radial-gradient(circle at 35% 35%,#2f8a73,#1e5b4c 60%,transparent 62%);animation:drift 14s ease-in-out infinite alternate}
+#s1 .o2{width:420px;height:420px;right:380px;bottom:-160px;background:radial-gradient(circle,#cfe5dc,transparent 65%);animation:drift 11s ease-in-out infinite alternate-reverse}
+#s1 .o3{width:240px;height:240px;right:140px;bottom:200px;border:3px solid #1e5b4c33;background:none;animation:drift 9s ease-in-out infinite alternate}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(-40px,30px) scale(1.06)}}
+#s1 .name{font-family:var(--serif);font-weight:800;font-size:230px;line-height:.9;letter-spacing:-.03em;color:var(--pine-dark)}
+#s1 .name span{display:inline-block;opacity:0;transform:translateY(80px) rotate(4deg)}
+.active#s1 .name span{animation:letter .9s var(--ease) forwards;animation-delay:calc(var(--k)*80ms + 200ms)}
+@keyframes letter{to{opacity:1;transform:none}}
+#s1 .deva{font-size:70px;font-weight:600;color:var(--pine);margin:6px 0 0 8px}
+#s1 .tag{font-size:46px;max-width:1100px;margin-top:36px;line-height:1.25;font-weight:300}
+#s1 .tag b{font-weight:800;color:var(--pine)}
+#s1 .team{margin-top:46px;display:flex;gap:14px;flex-wrap:wrap}
+#s1 .stamp{position:absolute;right:210px;top:430px;transform:rotate(-9deg) scale(2.4);opacity:0;border:7px solid var(--stamp);color:var(--stamp);padding:18px 30px;font-weight:800;font-size:40px;letter-spacing:.08em;text-align:center;line-height:1.15;border-radius:10px;background:#f6f7f4cc}
+.active#s1 .stamp{animation:slam .6s cubic-bezier(.5,0,.3,1.4) forwards 1.8s}
+.stamp small{display:block;font-size:22px;letter-spacing:.14em;font-weight:600}
+@keyframes slam{60%{opacity:1;transform:rotate(-9deg) scale(.94)}to{opacity:1;transform:rotate(-9deg) scale(1)}}
+#s1 .disclose{margin-top:34px;font-size:22px;color:var(--muted);max-width:1100px}
+
+/* ---------- 2 problem ---------- */
+.cards4{display:grid;grid-template-columns:repeat(4,1fr);gap:28px;width:100%}
+.card{background:#fff;border:1.5px solid var(--line);border-radius:22px;padding:34px 32px;position:relative;overflow:hidden}
+.card h3{font-size:36px;margin:18px 0 10px}
+.card p{font-size:25px;color:var(--muted);line-height:1.35}
+.ico{width:76px;height:76px;border-radius:20px;background:var(--stamp-wash);display:grid;place-items:center}
+.ico svg{width:44px;height:44px;stroke:var(--stamp);fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.ico.pine{background:var(--pine-wash)} .ico.pine svg{stroke:var(--pine)}
+.ico.amber{background:var(--amber-wash)} .ico.amber svg{stroke:var(--amber)}
+.card .x{position:absolute;right:22px;top:20px;font-weight:800;color:var(--stamp);font-size:20px;letter-spacing:.12em;opacity:0}
+.active .card .x{animation:rise .5s forwards;animation-delay:calc(var(--i)*110ms + 1.4s)}
+.banner{margin-top:44px;width:100%;background:var(--ink);color:#fff;border-radius:22px;padding:30px 44px;font-size:36px;font-family:var(--serif);display:flex;justify-content:space-between;align-items:center}
+.banner b{color:#ff9d8a}
+
+/* ---------- 3 relay ---------- */
+.relay{display:grid;grid-template-columns:1fr 1fr;gap:50px;width:100%}
+.lane{background:#fff;border:1.5px solid var(--line);border-radius:26px;padding:34px 38px 38px}
+.lane h3{font-size:34px;margin-bottom:6px}
+.lane.good{border-color:#9cc7b9;background:linear-gradient(#fff,var(--pine-wash))}
+.track{position:relative;height:300px;margin-top:20px}
+.node{position:absolute;width:190px;text-align:center;font-weight:600;font-size:23px;transform:translate(-50%,-50%);top:50%}
+.node i{display:block;width:96px;height:96px;margin:0 auto 12px;border-radius:50%;background:var(--ink);color:#fff;font-style:normal;display:grid;place-items:center;font-size:42px}
+.node.pr i{background:var(--pine)} .node.ins i{background:#42524d} .node.dist i{background:var(--amber)}
+.node.dim{opacity:.28}
+.wire{position:absolute;top:50%;height:4px;background:var(--line);border-radius:3px;transform:translateY(-50%)}
+.pkt{position:absolute;top:50%;width:26px;height:26px;margin-top:-13px;border-radius:50%;background:var(--stamp);opacity:0}
+.active .pkt{animation:travel 2.4s linear infinite;animation-delay:var(--dl,0s)}
+.pkt.back{background:var(--amber);animation-name:travelBack}
+.pkt.go{background:var(--pine)}
+@keyframes travel{0%{left:var(--a);opacity:0}10%{opacity:1}90%{opacity:1}100%{left:var(--b);opacity:0}}
+@keyframes travelBack{0%{left:var(--b);opacity:0}10%{opacity:1}90%{opacity:1}100%{left:var(--a);opacity:0}}
+.lane .cap{font-size:25px;color:var(--muted);line-height:1.35;margin-top:10px}
+.lane .cap b{color:var(--ink)}
+
+/* ---------- 4 promises ---------- */
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;width:100%}
+.promise{background:#fff;border-radius:26px;border:1.5px solid var(--line);padding:42px 38px;position:relative;overflow:hidden;min-height:430px}
+.promise .n{font-family:var(--serif);font-size:130px;font-weight:800;color:var(--pine-wash);position:absolute;right:26px;top:-8px;line-height:1}
+.promise h3{font-size:44px;margin:90px 0 16px;position:relative}
+.promise p{font-size:27px;color:var(--muted);line-height:1.4;position:relative}
+.nots{margin-top:36px;display:flex;gap:16px;align-items:center;font-size:24px;color:var(--muted);flex-wrap:wrap}
+
+/* ---------- 5 architecture ---------- */
+.arch{display:grid;grid-template-columns:230px 24px 270px 24px 270px 24px 1fr 24px 250px;align-items:center;width:100%;gap:0}
+.col{display:flex;flex-direction:column;gap:16px}
+.box{background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px 20px;font-size:21px;line-height:1.25;transition:all .5s var(--ease);position:relative}
+.box b{display:block;font-size:25px;font-family:var(--serif);margin-bottom:4px}
+.box.lit{border-color:var(--pine);background:var(--pine-wash);transform:scale(1.04);box-shadow:0 14px 34px #1e5b4c33}
+.arrow{font-size:34px;color:var(--line);text-align:center;transition:color .4s}
+.arrow.lit{color:var(--pine)}
+.lanes .box{padding:14px 18px;font-size:19px}
+.lanes .box b{font-size:22px}
+.lanes{display:flex;flex-direction:column;gap:14px}
+.pipeline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;font-size:17px;color:var(--muted)}
+.pipeline u{text-decoration:none;background:#fff;border:1.5px solid var(--line);padding:3px 9px;border-radius:8px;transition:.4s}
+.pipeline u.lit{background:var(--pine);color:#fff;border-color:var(--pine)}
+
+/* ---------- 5b news ---------- */
+.nw{display:grid;grid-template-columns:1fr 1fr;gap:50px;width:100%;align-items:stretch}
+.nwflow{display:flex;flex-direction:column;gap:14px}
+.nwrow{display:grid;grid-template-columns:1fr 38px 1fr;align-items:center;gap:0}
+.feeds{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.feed{background:#fff;border:2px solid var(--line);border-radius:14px;padding:12px 16px;font-size:21px;font-weight:600;transition:all .5s var(--ease);position:relative}
+.feed small{display:block;font-weight:400;font-size:16px;color:var(--muted)}
+.feed.lit{border-color:var(--pine);background:var(--pine-wash);transform:scale(1.03)}
+.feed.lit::after{content:"";position:absolute;right:12px;top:14px;width:12px;height:12px;border-radius:50%;background:var(--pine);animation:pulse2 1.4s infinite}
+@keyframes pulse2{0%{box-shadow:0 0 0 0 #1e5b4c88}100%{box-shadow:0 0 0 14px #1e5b4c00}}
+.nstep{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px 20px;font-size:23px;transition:all .5s var(--ease)}
+.nstep b{font-family:var(--serif);font-size:25px;display:block}
+.nstep span{color:var(--muted);font-size:19px}
+.nstep.lit{border-color:var(--pine);background:var(--pine-wash)}
+.ndown{text-align:center;color:var(--line);font-size:26px;line-height:.8;transition:color .4s}
+.ndown.lit{color:var(--pine)}
+.ans{background:#fff;border:2px solid var(--line);border-radius:24px;padding:30px 34px;display:flex;flex-direction:column;gap:16px;opacity:.25;transition:opacity .7s}
+.ans.on{opacity:1;border-color:#9cc7b9;box-shadow:0 20px 50px #1e5b4c1f}
+.ans .q{font-size:22px;color:var(--muted)}
+.ans .a{font-size:27px;line-height:1.4}
+.ans .cite{display:inline-block;font-size:20px;background:var(--amber-wash);color:var(--amber);border:1.5px solid #e6cd9e;border-radius:99px;padding:4px 14px;font-weight:600}
+.ans .notebox{font-size:21px;background:var(--stamp-wash);border-left:6px solid var(--stamp);padding:12px 18px;border-radius:0 12px 12px 0;color:#5b1f14}
+.nrules{display:flex;gap:10px;flex-wrap:wrap;margin-top:auto}
+
+/* ---------- 6 readiness ---------- */
+.demo{display:grid;grid-template-columns:600px 1fr;gap:56px;width:100%;align-items:stretch}
+.phone{background:#e9efe9;border-radius:44px;border:10px solid var(--ink);height:690px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 60px #0003}
+.phone .top{background:var(--pine-dark);color:#fff;padding:18px 24px;font-weight:600;font-size:23px;display:flex;justify-content:space-between}
+.phone .msgs{flex:1;padding:18px;display:flex;flex-direction:column;gap:12px;overflow:hidden;justify-content:flex-end}
+.msg{max-width:88%;padding:12px 16px;border-radius:16px;font-size:21px;line-height:1.3;opacity:0;transform:translateY(16px) scale(.96);transition:all .45s var(--ease)}
+.msg.show{opacity:1;transform:none}
+.msg.me{align-self:flex-end;background:#d9f0d2;border-bottom-right-radius:4px}
+.msg.bot{align-self:flex-start;background:#fff;border-bottom-left-radius:4px}
+.msg .wave{display:flex;gap:3px;align-items:center;height:26px}
+.msg .wave i{display:block;width:4px;background:var(--pine);border-radius:2px;animation:wave 1s ease-in-out infinite}
+@keyframes wave{50%{height:100%}}
+.msg .wave i{height:30%}
+.msg .photo{width:150px;height:76px;border-radius:10px;background:repeating-linear-gradient(0deg,#fff 0 12px,#e5ebe7 12px 14px);border:1.5px solid var(--line);display:grid;place-items:center;font-size:18px;color:var(--muted)}
+.typing{display:inline-flex;gap:5px}.typing i{width:8px;height:8px;border-radius:50%;background:#99a;animation:blink 1s infinite}.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{50%{opacity:.2}}
+.calc{background:#fff;border:1.5px solid var(--line);border-radius:26px;padding:30px 36px;display:flex;flex-direction:column;gap:18px}
+.calc h3{font-size:30px}
+.bill{display:flex;height:84px;border-radius:14px;overflow:hidden;border:1.5px solid var(--line);width:100%}
+.seg{height:100%;display:grid;place-items:center;font-size:19px;font-weight:600;color:#fff;transform-origin:left;transform:scaleX(0);transition:transform 1s var(--ease);white-space:nowrap}
+.seg.on{transform:none}
+.seg.ded{background:var(--amber);justify-content:start;padding-left:22px;position:relative} .seg.exm{background:var(--pine)}
+.seg.cut{background:repeating-linear-gradient(45deg,var(--stamp) 0 10px,#c4513d 10px 20px)}
+.legend{display:flex;gap:26px;font-size:21px;color:var(--muted);flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:16px;height:16px;border-radius:4px;margin-right:8px;vertical-align:-2px;background:var(--c)}
+.formula{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.f{background:var(--paper);border-radius:16px;padding:14px 18px;opacity:0;transform:translateY(14px);transition:all .6s var(--ease)}
+.f.on{opacity:1;transform:none}
+.f small{display:block;font-size:18px;color:var(--muted);margin-bottom:4px}
+.f strong{font-family:var(--serif);font-size:34px}
+.result{display:flex;align-items:center;gap:24px;background:var(--amber-wash);border:2px solid #e6cd9e;border-radius:20px;padding:16px 28px;opacity:0;transform:scale(.96);transition:all .6s var(--ease)}
+.result.on{opacity:1;transform:none}
+.result .big{font-family:var(--serif);font-weight:800;font-size:68px;color:var(--amber)}
+.result p{font-size:23px;line-height:1.3}
+
+/* ---------- 7 outcomes ---------- */
+.out{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;width:100%}
+.oc{border-radius:26px;padding:40px 36px;min-height:470px;border:3px solid;position:relative;display:flex;flex-direction:column}
+.oc.file{background:var(--pine-wash);border-color:var(--pine)}
+.oc.hold{background:var(--stamp-wash);border-color:var(--stamp)}
+.oc.cut{background:var(--amber-wash);border-color:var(--amber)}
+.oc .lab{font-weight:800;letter-spacing:.14em;font-size:21px}
+.oc.file .lab{color:var(--pine)} .oc.hold .lab{color:var(--stamp)} .oc.cut .lab{color:var(--amber)}
+.oc h3{font-size:52px;margin:16px 0 18px}
+.oc p{font-size:26px;line-height:1.38}
+.oc .ex{margin-top:auto;font-size:22px;color:var(--muted);border-top:1.5px dashed #0003;padding-top:16px}
+.oc .ex b{display:block;font-size:34px;font-family:var(--serif);color:var(--ink)}
+.demo-tag{position:absolute;top:-18px;right:26px;background:var(--ink);color:#fff;font-size:18px;font-weight:600;padding:5px 14px;border-radius:99px}
+.nextact{margin-top:34px;font-size:30px;display:flex;gap:18px;align-items:center}
+.nextact b{font-family:var(--serif)}
+
+/* ---------- 8 engine ---------- */
+.rules{flex:1.5;display:flex;flex-direction:column;gap:11px}
+.rule{display:grid;grid-template-columns:420px 210px 1fr;align-items:center;gap:18px;background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:11px 20px;font-size:22px}
+.rule code{font-family:ui-monospace,Consolas,monospace;font-size:21px;color:var(--pine-dark);font-weight:600}
+.kind{font-family:ui-monospace,Consolas,monospace;font-size:17px;background:var(--paper);border:1px solid var(--line);padding:3px 10px;border-radius:7px;color:var(--muted);justify-self:start}
+.eff{font-size:20px;color:var(--muted)}
+.side{flex:1;display:flex;flex-direction:column;gap:22px}
+.pure{background:var(--ink);color:#fff;border-radius:24px;padding:30px 34px}
+.pure h3{font-size:34px;margin-bottom:14px;color:#8fe0c4}
+.pure li{list-style:none;font-size:25px;padding:7px 0;display:flex;gap:12px}
+.pure li::before{content:"✓";color:#8fe0c4;font-weight:800}
+.three-tests{background:#fff;border:1.5px solid var(--line);border-radius:24px;padding:26px 32px}
+.three-tests h3{font-size:30px;margin-bottom:14px}
+.chips{display:flex;gap:12px;flex-wrap:wrap}
+
+/* ---------- 9 missing fact ---------- */
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;flex:1.1}
+.fact{background:#fff;border:2px dashed var(--line);border-radius:18px;padding:20px 24px;transition:all .6s var(--ease);min-height:128px}
+.fact small{display:block;color:var(--muted);font-size:20px;font-family:ui-monospace,Consolas,monospace}
+.fact strong{font-family:var(--serif);font-size:48px;color:#b9c2be}
+.fact.on{border-style:solid;border-color:var(--pine);background:var(--pine-wash)}
+.fact.on strong{color:var(--pine-dark)}
+.verdictbox{flex:1;border-radius:28px;padding:40px 44px;transition:all .6s var(--ease);border:3px solid;min-height:480px;display:flex;flex-direction:column;gap:14px}
+.verdictbox.pending{background:#fff;border-color:var(--line)}
+.verdictbox.done{background:var(--stamp-wash);border-color:var(--stamp)}
+.verdictbox .lab{font-weight:800;letter-spacing:.14em;font-size:22px}
+.verdictbox h3{font-size:58px}
+.verdictbox p{font-size:28px;line-height:1.4}
+.verdictbox .swap{transition:opacity .35s}
+
+/* ---------- 10 checklist ---------- */
+.cl{display:grid;grid-template-columns:1fr 1fr;gap:56px;width:100%;align-items:center}
+.slots{display:flex;flex-direction:column;gap:14px}
+.slot{display:flex;align-items:center;gap:22px;background:#fff;border:2px solid var(--line);border-radius:18px;padding:18px 26px;font-size:30px;transition:all .5s var(--ease)}
+.slot .n{width:44px;height:44px;border-radius:50%;background:var(--paper);display:grid;place-items:center;font-size:22px;font-weight:700;color:var(--muted);transition:.4s;flex:none}
+.slot .st{margin-left:auto;font-size:21px;color:var(--muted)}
+.slot.got{border-color:var(--pine);background:var(--pine-wash)}
+.slot.got .n{background:var(--pine);color:#fff}
+.slot.got .st{color:var(--pine);font-weight:600}
+.slot.flash{transform:scale(1.03)}
+.inbox{position:relative;height:520px;background:#e9efe9;border-radius:30px;overflow:hidden;padding:26px}
+.inbox .big{position:absolute;right:28px;top:20px;font-family:var(--serif);font-size:80px;font-weight:800;color:var(--pine)}
+.fly{position:absolute;left:-240px;top:calc(var(--y)*1px);width:210px;height:130px;background:#fff;border:2px solid var(--line);border-radius:12px;display:grid;place-items:center;font-size:19px;color:var(--muted);padding:10px;text-align:center;box-shadow:0 12px 26px #0002}
+.reply{position:absolute;left:26px;right:26px;bottom:26px;background:#fff;border-radius:16px;padding:16px 20px;font-size:23px;line-height:1.3;transition:opacity .4s}
+
+/* ---------- 11 router ---------- */
+table.rt{width:100%;border-collapse:separate;border-spacing:0 10px;font-size:25px}
+.rt th{text-align:left;font-size:19px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:0 22px 4px;font-weight:600}
+.rt td{background:#fff;padding:16px 22px;border-top:1.5px solid var(--line);border-bottom:1.5px solid var(--line)}
+.rt td:first-child{border-left:1.5px solid var(--line);border-radius:16px 0 0 16px}
+.rt td:last-child{border-right:1.5px solid var(--line);border-radius:0 16px 16px 0}
+.rt tr.rv td{transition:background .5s}
+.rt tr.mine td{background:var(--amber-wash)}
+.rt tr.hot td{background:var(--pine-wash)}
+.rt .own{font-weight:600}
+
+/* ---------- 12 leverage ---------- */
+.lev{display:grid;grid-template-columns:1fr 760px;gap:60px;width:100%;align-items:center}
+.tl{position:relative;height:150px;margin:20px 0 10px}
+.tl .bar{position:absolute;left:0;right:0;top:62px;height:26px;border-radius:13px;background:var(--line)}
+.tl .fill{position:absolute;left:0;top:62px;height:26px;border-radius:13px;background:var(--pine);width:0;transition:width 3.2s cubic-bezier(.3,.6,.2,1)}
+.tl .mark{position:absolute;top:30px;width:4px;height:90px;background:var(--stamp);left:calc(60/72*100%)}
+.tl .mark span{position:absolute;top:-34px;left:-70px;width:150px;text-align:center;font-weight:700;color:var(--stamp);font-size:22px}
+.tl .mark::after{content:"";position:absolute;left:-8px;top:36px;width:20px;height:20px;border-radius:50%;background:var(--stamp);animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 #a8321f88}100%{box-shadow:0 0 0 26px #a8321f00}}
+.tl .ticks{position:absolute;top:104px;left:0;right:0;display:flex;justify-content:space-between;font-size:20px;color:var(--muted)}
+.tl .now{position:absolute;top:0;font-family:var(--serif);font-size:44px;font-weight:800;color:var(--pine);left:0;transition:left 3.2s cubic-bezier(.3,.6,.2,1)}
+.ground{margin-top:14px;font-size:30px;line-height:1.4;background:var(--pine-wash);border-left:8px solid var(--pine);padding:24px 30px;border-radius:0 18px 18px 0;opacity:0;transition:opacity .7s}
+.ground.on{opacity:1}
+.letter{background:#fff;border-radius:10px;padding:36px 42px;box-shadow:0 30px 60px #0002;transform:rotate(1.2deg);position:relative;border:1.5px solid var(--line)}
+.letter .to{font-size:20px;color:var(--muted);margin-bottom:8px}
+.letter .to b{color:var(--ink);font-size:24px;display:block}
+.letter p{font-size:23px;line-height:1.42;margin:12px 0}
+.letter .btn{margin-top:14px;display:inline-block;padding:14px 30px;border-radius:99px;font-weight:700;font-size:24px;background:var(--pine);color:#fff;transition:all .4s;cursor:default}
+.letter .btn.press{transform:scale(.93)}
+.letter .btn.done{background:var(--pine-wash);color:var(--pine);border:2px solid var(--pine)}
+.letter .ok{margin-left:18px;font-size:22px;color:var(--muted)}
+
+/* ---------- 13 console ---------- */
+.con{display:grid;grid-template-columns:560px 1fr;gap:50px;width:100%}
+.head{background:var(--ink);color:#fff;border-radius:26px;padding:42px 44px}
+.head .lab{font-size:20px;letter-spacing:.14em;color:#8fe0c4;font-weight:600}
+.head .h{font-family:var(--serif);font-size:62px;line-height:1.1;margin:12px 0 22px}
+.head .h b{color:#8fe0c4}
+.counters{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.ctr{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:12px 16px;font-size:19px;color:var(--muted)}
+.ctr b{display:block;font-family:var(--serif);font-size:40px;color:var(--pine-dark)}
+.case{display:grid;grid-template-columns:230px 1fr 180px;gap:14px;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:16px;padding:16px 22px;font-size:23px}
+.case small{color:var(--muted);display:block;font-size:18px}
+.cases{display:flex;flex-direction:column;gap:12px}
+
+/* ---------- 14 languages ---------- */
+.pills{display:flex;flex-wrap:wrap;gap:16px;max-width:1100px}
+.pill{font-size:40px;font-weight:600;padding:12px 30px 10px;border-radius:34px;display:flex;flex-direction:column;align-items:center;line-height:1.2;background:#ffffff14;border:2px solid #ffffff30;color:#fff}
+.pill small{font-size:20px;font-weight:400;letter-spacing:.06em;opacity:.8;margin-top:2px}
+.dark .pill:nth-child(3n){background:#8fe0c422}
+.pill.rv{transform:scale(.6)}
+.vp{display:flex;flex-direction:column;gap:20px;flex:1}
+.vp .row{display:flex;gap:20px;align-items:center;font-size:30px;background:#ffffff12;border:1.5px solid #ffffff2a;border-radius:20px;padding:22px 28px}
+.mic{width:70px;height:70px;border-radius:50%;background:#8fe0c4;color:var(--pine-dark);display:grid;place-items:center;font-size:32px;flex:none;position:relative}
+.mic::after{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #8fe0c4;animation:ring 1.8s infinite}
+@keyframes ring{to{transform:scale(1.7);opacity:0}}
+.keep{display:flex;gap:12px;margin-top:10px;font-size:24px;flex-wrap:wrap}
+.keep span{background:#ffffff1c;padding:6px 16px;border-radius:99px}
+
+/* ---------- 15 trust ---------- */
+.six{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;width:100%}
+.tc{background:#fff;border:1.5px solid var(--line);border-radius:22px;padding:28px 30px;min-height:280px}
+.tc h3{font-size:34px;margin:12px 0 10px}
+.tc p{font-size:23px;line-height:1.38;color:var(--muted)}
+.del{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.del div{font-size:20px;background:var(--paper);border-radius:10px;padding:8px 14px;transition:all .7s var(--ease);display:flex;justify-content:space-between}
+.del.go div{opacity:0;transform:translateX(60px);height:0;padding:0 14px;margin:-4px 0}
+.del.go div:nth-child(2){transition-delay:.15s}.del.go div:nth-child(3){transition-delay:.3s}
+
+/* ---------- 16 proof ---------- */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;width:100%}
+.stat{background:#fff;border:1.5px solid var(--line);border-radius:24px;padding:34px 32px}
+.stat b{font-family:var(--serif);font-size:110px;color:var(--pine);display:block;line-height:1}
+.stat span{font-size:25px;color:var(--muted);display:block;margin-top:12px;line-height:1.3}
+.nx{display:grid;grid-template-columns:1fr 1fr;gap:30px;width:100%;margin-top:30px}
+.nx>div{border-radius:22px;padding:28px 34px;font-size:25px;line-height:1.5}
+.nx h3{font-size:32px;margin-bottom:10px}
+.built{background:var(--pine-wash)} .next{background:#fff;border:2px dashed #b3bdb8}
+.nx li{margin-left:26px}
+
+/* ---------- 17 close ---------- */
+#s17{justify-content:center;align-items:flex-start}
+#s17 h2{font-size:122px;max-width:1650px}
+#s17 .sub{color:#c8dbd3;font-size:38px}
+#s17 .stamp2{margin-top:50px;display:inline-flex;gap:16px;flex-wrap:wrap}
+
+/* ---------- chrome ---------- */
+#bar{position:absolute;left:0;bottom:0;height:8px;background:var(--pine);width:0;transition:width .5s var(--ease);z-index:5}
+.dark ~ #bar{background:#8fe0c4}
+#count{position:absolute;right:250px;bottom:30px;font-size:20px;color:var(--muted);z-index:5;font-weight:600;letter-spacing:.1em}
+#brand{position:absolute;left:56px;top:34px;font-family:var(--serif);font-weight:700;font-size:26px;z-index:5;color:var(--pine-dark);opacity:.9}
+#hint{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:14px;color:#ffffff66;z-index:9;transition:opacity 1s}
+#nav{position:fixed;right:14px;bottom:10px;display:flex;gap:6px;z-index:9;opacity:.3;transition:opacity .3s}#nav:hover{opacity:1}
+#nav button{background:#ffffff1c;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:15px;cursor:pointer}
+#nav button:hover{background:#ffffff40}
+body.dark-ui #brand{color:#9fd1c0} body.dark-ui #count{color:#a5bdb4}
+
+/* overview */
+body.overview #stage{transform:none!important;left:0;top:0;width:auto;height:auto;background:#101a17;box-shadow:none;overflow:auto;position:fixed;inset:0;display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:30px;align-content:start}
+body.overview #viewport{display:block;overflow:auto}
+body.overview .slide{position:relative;inset:auto;visibility:visible;opacity:1;width:1920px;height:1080px;zoom:.2;cursor:pointer;border-radius:12px;pointer-events:auto}
+body.overview .rv,body.overview .seg,body.overview .f,body.overview .msg{opacity:1!important;transform:none!important}
+body.overview #bar,body.overview #count,body.overview #brand{display:none}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}
+  .rv{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="viewport">
+<div id="stage">
+<div id="brand">Praman · प्रमाण</div>
+
+<!-- 1 TITLE -->
+<section class="slide" id="s1" data-title="Praman">
+  <div class="bg"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+  <div class="eyebrow rv" style="--i:0">AI-Powered Financial Journeys</div>
+  <div class="name" aria-label="Praman"><span style="--k:0">P</span><span style="--k:1">r</span><span style="--k:2">a</span><span style="--k:3">m</span><span style="--k:4">a</span><span style="--k:5">n</span></div>
+  <div class="deva rv" style="--i:7">प्रमाण <span class="muted" style="font-weight:300;font-size:44px">· proof</span></div>
+  <p class="tag rv" style="--i:8">Stops <b>avoidable claim rejections</b> before they happen, and sends every question to the party that actually owes the answer.</p>
+  <div class="team rv" style="--i:9">
+    <span class="badge pine">Team HackOverFlow</span><span class="badge pine">Rithvik Shetty</span><span class="badge pine">Vinay Pokharkar</span>
+  </div>
+  <div class="stamp">FILE WITH A<br>KNOWN DEDUCTION<small>EXAMPLE CASE</small></div>
+  <p class="disclose rv" style="--i:10">The Praman platform pre-dates this hackathon and is disclosed as such. The claim readiness, routing and console modules are this build. All data in this deck is labelled example data.</p>
+  <div class="footer-credit"><span>Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with or endorsed by Paytm.</span></div>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="slide" id="s2" data-title="The problem">
+  <div class="eyebrow rv">The problem</div>
+  <h2 class="rv" style="--i:1">A claim is usually cut for reasons <em>visible before filing.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="cards4">
+      <div class="card rv" style="--i:2"><span class="x" style="--i:0">STOPPED</span><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Waiting period</h3><p>The treatment is still inside the wait. The policy is too young.</p></div>
+      <div class="card rv" style="--i:3"><span class="x" style="--i:1">STOPPED</span><div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></div><h3>Excluded</h3><p>The procedure is on the policy's list of things it never pays for.</p></div>
+      <div class="card rv" style="--i:4"><span class="x" style="--i:2;color:var(--amber)">CUT</span><div class="ico amber"><svg viewBox="0 0 24 24"><path d="M3 18V8M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="1.6"/></svg></div><h3>Room above the cap</h3><p>The room costs more than the limit, so charges are cut in proportion.</p></div>
+      <div class="card rv" style="--i:5"><span class="x" style="--i:3">STOPPED</span><div class="ico"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6"/></svg></div><h3>Missing papers</h3><p>A discharge summary, a bill, an ID, still not in the file.</p></div>
+    </div>
+    <div class="banner rv" style="--i:7"><span>The problem shows up <b>after</b> the claim is paid for and filed.</span><span class="badge red" style="font-size:24px">Nobody warned them in advance</span></div>
+  </div>
+</section>
+
+<!-- 3 RELAY -->
+<section class="slide" id="s3" data-title="The relay">
+  <div class="eyebrow rv">The distributor's problem</div>
+  <h2 class="rv" style="--i:1">Support desks became <em>a relay.</em></h2>
+  <div class="body">
+    <div class="relay">
+      <div class="lane rv left" style="--i:2">
+        <h3>Today</h3>
+        <div class="track">
+          <div class="wire" style="left:12%;width:76%"></div>
+          <div class="node" style="left:12%"><i>👤</i>Customer</div>
+          <div class="node dist" style="left:50%"><i>🎧</i>Distributor desk</div>
+          <div class="node ins" style="left:88%"><i>🏢</i>Insurer</div>
+          <span class="pkt" style="--a:12%;--b:50%;--dl:0s"></span>
+          <span class="pkt" style="--a:50%;--b:88%;--dl:.8s"></span>
+          <span class="pkt back" style="--a:50%;--b:88%;--dl:1.5s"></span>
+        </div>
+        <p class="cap">The customer paid the distributor, so the distributor gets the question, even when <b>the insurer owns the answer.</b> Agents chase the insurer on the customer's behalf.</p>
+      </div>
+      <div class="lane good rv right" style="--i:3">
+        <h3>With Praman</h3>
+        <div class="track">
+          <div class="wire" style="left:12%;width:76%;background:#9cc7b9"></div>
+          <div class="node" style="left:12%"><i>👤</i>Customer</div>
+          <div class="node pr" style="left:50%"><i>प्र</i>Praman</div>
+          <div class="node ins" style="left:88%"><i>🏢</i>Insurer</div>
+          <span class="pkt go" style="--a:12%;--b:50%;--dl:0s"></span>
+          <span class="pkt go" style="--a:50%;--b:88%;--dl:.9s"></span>
+          <div class="node dim" style="left:50%;top:6%;width:160px;font-size:18px"><i style="width:44px;height:44px;font-size:20px;background:var(--amber)">🎧</i>Distributor: not involved</div>
+        </div>
+        <p class="cap">Praman sends the question <b>straight to the party that owes the answer,</b> by name. The ticket never reaches the distributor.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 PROMISES -->
+<section class="slide" id="s4" data-title="Three promises">
+  <div class="eyebrow rv">What Praman does</div>
+  <h2 class="rv" style="--i:1">Three things, <em>each one tested.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="three">
+      <div class="promise rv" style="--i:2"><span class="n">1</span><h3>Stops avoidable rejections</h3><p>A rule engine checks the claim against the policy and bill <b>before</b> filing. One of three answers: file, do not file yet, or file with a known deduction.</p></div>
+      <div class="promise rv" style="--i:3"><span class="n">2</span><h3>Sends it to the right party</h3><p>A router names who owes the answer: insurer, lender or distributor. Each has its own first step and its own clock.</p></div>
+      <div class="promise rv" style="--i:4"><span class="n">3</span><h3>Shows the distributor its benefit</h3><p>A console counts, from recorded events only, which cases needed the distributor and which went straight to the insurer.</p></div>
+    </div>
+    <div class="nots rv" style="--i:6"><b style="color:var(--ink)">What it does not do:</b> <span class="badge red">recommend a policy</span><span class="badge red">predict approval</span><span class="badge red">score credit</span><span class="badge red">file anything automatically</span></div>
+  </div>
+</section>
+
+<!-- 5 ARCHITECTURE -->
+<section class="slide" id="s5" data-title="How it works">
+  <div class="eyebrow rv">How it works</div>
+  <h2 class="rv" style="--i:1">One process. <em>Adapters at the edge.</em></h2>
+  <div class="body">
+    <div class="arch rv" style="--i:2">
+      <div class="col"><div class="box" data-n="0"><b>Customer</b>WhatsApp, web chat, voice. 11 languages.</div></div>
+      <div class="arrow" data-a="0">›</div>
+      <div class="col"><div class="box" data-n="1"><b>Conversation</b>Consent before reading. Delete everything. Checklist.</div></div>
+      <div class="arrow" data-a="1">›</div>
+      <div class="col"><div class="box" data-n="2"><b>Classifier</b>question · grievance · pre-decision, plus product.</div></div>
+      <div class="arrow" data-a="2">›</div>
+      <div class="lanes">
+        <div class="box" data-n="3"><b>Question → RAG</b>Answer only from sources, with a citation. Policy, rules and labelled news. No source, no answer.</div>
+        <div class="box" data-n="4"><b>Pre-decision → Engine</b>
+          <div class="pipeline"><u data-p="0">Doc AI</u>›<u data-p="1">confidence gate</u>›<u data-p="2">pure rule engine</u>›<u data-p="3">verdict</u></div></div>
+        <div class="box" data-n="5"><b>Grievance → Router</b>Insurer, lender or distributor. Draft addressed by name.</div>
+      </div>
+      <div class="arrow" data-a="3">›</div>
+      <div class="col"><div class="box" data-n="6"><b>Event log</b>every read, draft and answer</div><div class="box" data-n="7"><b>Console</b>reads events only</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5b NEWS -->
+<section class="slide" id="s5b" data-title="Always current">
+  <div class="eyebrow rv">Always current</div>
+  <h2 class="rv" style="--i:1">A live <em>news layer</em> keeps answers fresh.</h2>
+  <div class="body" style="margin-top:26px">
+    <div class="nw">
+      <div class="nwflow rv left" style="--i:2">
+        <div class="feeds" id="feeds5b">
+          <div class="feed" data-f="0">RBI press release<small>official</small></div>
+          <div class="feed" data-f="1">RBI notification<small>official</small></div>
+          <div class="feed" data-f="2">Economic Times<small>news outlet</small></div>
+          <div class="feed" data-f="3">Mint<small>news outlet</small></div>
+        </div>
+        <div class="ndown" data-d="0">▾</div>
+        <div class="nstep" data-n="0"><b>1 · Allowlisted feeds only</b><span>https only. Title and summary only, no article pages. Refreshed every 60 minutes.</span></div>
+        <div class="ndown" data-d="1">▾</div>
+        <div class="nstep" data-n="1"><b>2 · Keep what matters</b><span>Insurance, IRDAI, ombudsman, grievance and similar words. Old items expire after 180 days.</span></div>
+        <div class="ndown" data-d="2">▾</div>
+        <div class="nstep" data-n="2"><b>3 · Index as "news", never verified</b><span>Kept apart from policies and regulation. At most 2 news passages per answer.</span></div>
+      </div>
+      <div class="rv right" style="--i:3;display:flex;flex-direction:column;gap:18px">
+        <div class="ans" id="ans5b">
+          <div class="q">Has the regulator said anything about customer complaints?</div>
+          <div class="a">The Reserve Bank has asked banks to tackle repeat customer complaints and fix gaps in their grievance systems, as reported by Economic Times.</div>
+          <div><span class="cite">[Economic Times, news 2026-10-02, p.1]</span> <span class="badge" style="font-size:17px;margin-left:6px">Not yet verified</span></div>
+          <div class="notebox">This is from a news or press report. It is not your policy and not the rule itself, so check the original.</div>
+        </div>
+        <div class="nrules">
+          <span class="badge pine">never changes the rule engine</span>
+          <span class="badge pine">labelled as news in every answer</span>
+          <span class="badge">IRDAI has no feed: its circulars are added as PDFs</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 READINESS DEMO -->
+<section class="slide" id="s6" data-title="Claim readiness, live">
+  <div class="eyebrow rv">Demo 1 · claim readiness</div>
+  <h2 class="rv" style="--i:1;font-size:66px">A family member is being admitted. <em>What gets cut?</em></h2>
+  <div class="body" style="margin-top:26px">
+    <div class="demo">
+      <div class="phone rv left" style="--i:2">
+        <div class="top"><span>Praman</span><span style="opacity:.7;font-size:18px">example case</span></div>
+        <div class="msgs" id="msgs6">
+          <div class="msg me"><div class="wave"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.3s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.5s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.1s"></i></div><span style="font-size:17px;color:var(--muted)">Voice note, in Marathi · 0:12</span></div>
+          <div class="msg me" style="display:flex;gap:8px"><div class="photo">📄 Policy</div><div class="photo">🧾 Hospital bill</div></div>
+          <div class="msg bot"><b>Your room costs more than the policy allows.</b> About <b>₹35,625</b> will be cut from room, doctor and surgery charges. Medicines, tests and implants are not cut.<br><span class="badge" style="font-size:16px;margin-top:8px">Not yet verified</span></div>
+          <div class="msg bot">Pick a room within the limit and nothing is cut. 🔊 <span style="color:var(--muted);font-size:17px">spoken reply</span></div>
+        </div>
+      </div>
+      <div class="calc rv right" style="--i:3">
+        <h3>The engine's working, on the example bill <span class="note" style="font-weight:400">· ₹1,33,850</span></h3>
+        <div class="bill" id="bill6">
+          <div class="seg ded" style="width:71%" data-s="0">Deductible ₹95,000</div>
+          <div class="seg exm" style="width:29%" data-s="1">Exempt ₹38,850</div>
+        </div>
+        <div class="legend"><span style="--c:var(--amber)">room, nursing, surgeon, anaesthetist, theatre</span><span style="--c:var(--pine)">pharmacy, consumables, tests, scans: never cut</span></div>
+        <div class="formula">
+          <div class="f" data-f="0"><small>cap per day</small><strong>1% × ₹5,00,000 = ₹5,000</strong></div>
+          <div class="f" data-f="1"><small>quoted per day</small><strong>₹8,000</strong></div>
+          <div class="f" data-f="2"><small>ratio</small><strong>5,000 ÷ 8,000 = 0.625</strong></div>
+        </div>
+        <div class="result" id="res6"><div class="big" id="cut6">₹0</div><p><b>(1 − 0.625) × ₹95,000</b><br>cut from the deductible heads only. Exempt heads are never reduced.</p></div>
+        <p class="note">Computed by the pure engine in Python, not by a model. Cap and amounts are from the labelled example policy and bill. Rule and bill-head table are <b>UNVERIFIED</b> and badged.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7 OUTCOMES -->
+<section class="slide" id="s7" data-title="Three outcomes">
+  <div class="eyebrow rv">The verdict</div>
+  <h2 class="rv" style="--i:1">Three outcomes, <em>not two.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="out">
+      <div class="oc file rv pop" style="--i:2"><div class="lab">OUTCOME 1</div><h3>File</h3><p>No rule blocks the claim. Nothing is cut. Go ahead and file.</p><div class="ex">A clear claim<b>Nothing to fix</b></div></div>
+      <div class="oc hold rv pop" style="--i:3"><div class="lab">OUTCOME 2</div><h3>Do not file yet</h3><p>A rule blocks it today, and the engine says <b>when it stops blocking.</b></p><div class="ex">Waiting period unmet<b>"You can claim from [date]"</b></div></div>
+      <div class="oc cut rv pop" style="--i:4"><span class="demo-tag">in the demo</span><div class="lab">OUTCOME 3</div><h3>File with a known deduction</h3><p>It will be paid, but part will be cut. The amount and the reason are known before filing.</p><div class="ex">Room above the cap<b>₹35,625 on the example bill</b></div></div>
+    </div>
+    <div class="nextact rv" style="--i:6"><span class="badge">Next action on a block</span> is never "give up": it is <b>a written coverage query to the insurer that starts a clock.</b></div>
+  </div>
+</section>
+
+<!-- 8 ENGINE -->
+<section class="slide" id="s8" data-title="The rule engine">
+  <div class="eyebrow rv">Why you can trust a refusal</div>
+  <h2 class="rv" style="--i:1">The "no" is <em>a tested function,</em> not an opinion.</h2>
+  <div class="body" style="margin-top:30px;align-items:flex-start">
+    <div class="rules">
+      <div class="rule rv" style="--i:2"><code>waiting_period_unmet</code><span class="kind">duration_unmet</span><span class="eff">blocks · gives the date</span></div>
+      <div class="rule rv" style="--i:3"><code>procedure_excluded</code><span class="kind">flag_true</span><span class="eff">blocks</span></div>
+      <div class="rule rv" style="--i:4"><code>policy_lapsed</code><span class="kind">flag_false</span><span class="eff">blocks</span></div>
+      <div class="rule rv" style="--i:5"><code>room_cap_breach</code><span class="kind">threshold_breach</span><span class="eff">known deduction</span></div>
+      <div class="rule rv" style="--i:6"><code>documents_incomplete</code><span class="kind">threshold_short</span><span class="eff">blocks · counts the gap</span></div>
+      <div class="rule rv" style="--i:7"><code>ped_wait_exceeds_cap</code><span class="kind">threshold_breach</span><span class="eff">ground for the letter</span></div>
+      <div class="rule rv" style="--i:8"><code>moratorium_reached</code><span class="kind">duration_met</span><span class="eff">ground for the letter</span></div>
+    </div>
+    <div class="side">
+      <div class="pure rv right" style="--i:3"><h3>The engine is pure</h3><ul><li>no network</li><li>no LLM</li><li>no randomness</li><li>no clock, no I/O</li></ul><p class="note" style="color:#a5bdb4;margin-top:10px">A test reads its source to prove it.</p></div>
+      <div class="three-tests rv right" style="--i:5"><h3>No rule ships without three tests</h3><div class="chips"><span class="badge red">blocked</span><span class="badge pine">clear</span><span class="badge">missing fact</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- 9 MISSING FACT -->
+<section class="slide" id="s9" data-title="A missing fact is not a no">
+  <div class="eyebrow rv">Honest by default</div>
+  <h2 class="rv" style="--i:1">A missing fact is <em>never</em> a "no".</h2>
+  <p class="sub rv" style="--i:2">Every fact starts as "not known". The engine will not guess the permissive answer. It holds the verdict and asks the customer.</p>
+  <div class="body" style="margin-top:30px;align-items:stretch">
+    <div style="flex:1.1;display:flex;flex-direction:column;gap:20px">
+      <div class="facts rv left" style="--i:3" id="facts9">
+        <div class="fact" data-f="0"><small>months_held</small><strong>—</strong></div>
+        <div class="fact" data-f="1"><small>wait_months</small><strong>—</strong></div>
+        <div class="fact" data-f="2"><small>room_quoted_per_day</small><strong>—</strong></div>
+        <div class="fact" data-f="3"><small>room_cap_per_day</small><strong>—</strong></div>
+        <div class="fact" data-f="4"><small>documents_collected</small><strong>—</strong></div>
+        <div class="fact" data-f="5"><small>policy_in_force</small><strong>—</strong></div>
+      </div>
+      <p class="note">Example values. Each value the customer gives (or a document supplies above the confidence gate) is filled in; anything uncertain is asked.</p>
+    </div>
+    <div class="verdictbox pending rv right" style="--i:4" id="vb9">
+      <div class="lab muted" id="vlab9">FACTS PENDING</div>
+      <h3 id="vh9">I need two more answers.</h3>
+      <p id="vp9">How old is the policy, and how long is this treatment's waiting period? Until then there is no verdict, and no assumption.</p>
+      <span class="badge" id="vbadge9" style="align-self:flex-start">asks the customer, in their language</span>
+    </div>
+  </div>
+</section>
+
+<!-- 10 CHECKLIST -->
+<section class="slide" id="s10" data-title="Checklist from photos">
+  <div class="eyebrow rv">Demo 2 · the checklist</div>
+  <h2 class="rv" style="--i:1">A checklist that <em>fills itself</em> from photographs.</h2>
+  <div class="body">
+    <div class="cl">
+      <div class="inbox rv left" style="--i:2" id="inbox10"><div class="big" id="n10">0 / 6</div><div class="reply" id="reply10" style="opacity:0"></div></div>
+      <div class="slots rv right" style="--i:3" id="slots10">
+        <div class="slot" data-k="0"><span class="n">1</span>Discharge summary<span class="st">missing</span></div>
+        <div class="slot" data-k="1"><span class="n">2</span>Final bill<span class="st">missing</span></div>
+        <div class="slot" data-k="2"><span class="n">3</span>ID proof<span class="st">missing</span></div>
+        <div class="slot" data-k="3"><span class="n">4</span>Policy copy<span class="st">missing</span></div>
+        <div class="slot" data-k="4"><span class="n">5</span>Prescriptions<span class="st">missing</span></div>
+        <div class="slot" data-k="5"><span class="n">6</span>Claim form<span class="st">missing</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 11 ROUTER -->
+<section class="slide" id="s11" data-title="Who owes the answer">
+  <div class="eyebrow rv">The router</div>
+  <h2 class="rv" style="--i:1">Who <em>owes</em> the customer an answer?</h2>
+  <div class="body" style="margin-top:20px;align-items:flex-start">
+    <table class="rt">
+      <tr class="rv" style="--i:2"><th>Situation</th><th>Owner</th><th>Distributor owes it?</th><th>First step</th></tr>
+      <tr class="rv hot" style="--i:3"><td>Claim denied or delayed</td><td class="own">Insurer</td><td><span class="badge pine">no</span></td><td>Insurer's grievance cell</td></tr>
+      <tr class="rv hot" style="--i:4"><td>Coverage question on the policy</td><td class="own">Insurer</td><td><span class="badge pine">no</span></td><td>Answered in chat, from the policy</td></tr>
+      <tr class="rv mine" style="--i:5"><td>Mis-sold or bundled policy</td><td class="own">Distributor (broker)</td><td><span class="badge">yes</span></td><td>Distributor, then insurer</td></tr>
+      <tr class="rv mine" style="--i:6"><td>Premium debited twice, refund</td><td class="own">Distributor</td><td><span class="badge">yes</span></td><td>Distributor's support ticket</td></tr>
+      <tr class="rv mine" style="--i:7"><td>App or platform issue</td><td class="own">Distributor</td><td><span class="badge">yes</span></td><td>Distributor's support ticket</td></tr>
+      <tr class="rv hot" style="--i:8"><td>Loan servicing, charges, conduct</td><td class="own">Lender, named in the KFS</td><td><span class="badge pine">no</span></td><td>Lender, then nodal officer</td></tr>
+      <tr class="rv hot" style="--i:9"><td>Motor claim</td><td class="own">Insurer</td><td><span class="badge pine">no</span></td><td>Insurer's claims desk</td></tr>
+    </table>
+  </div>
+  <p class="note rv" style="--i:10;margin-top:6px">Each owner has its own ladder and clock. Neither passes through the other's. Windows are <b>UNVERIFIED</b> and badged unless a source is named.</p>
+</section>
+
+<!-- 12 LEVERAGE -->
+<section class="slide" id="s12" data-title="Leverage and the draft">
+  <div class="eyebrow rv">Demo 3 · leverage</div>
+  <h2 class="rv" style="--i:1">Denied for non-disclosure, <em>six years in.</em></h2>
+  <div class="body" style="margin-top:20px">
+    <div class="lev">
+      <div class="rv left" style="--i:2">
+        <p class="sub" style="margin:0 0 6px;font-size:28px">Months of continuous cover <span class="note">(example case)</span></p>
+        <div class="tl"><div class="now" id="now12">0</div><div class="bar"></div><div class="fill" id="fill12"></div><div class="mark"><span>60 months</span></div><div class="ticks"><span>0</span><span>12</span><span>24</span><span>36</span><span>48</span><span>60</span><span>72</span></div></div>
+        <div class="ground" id="ground12"><b>Ground found.</b> After 60 months of continuous cover the insurer cannot reject for non-disclosure unless it proves fraud. <span class="badge" style="font-size:17px;margin-left:6px">Not yet verified</span></div>
+      </div>
+      <div class="letter rv right" style="--i:3">
+        <div class="to">DRAFT · read back in the customer's language<b>To: Example General Insurance Company Ltd</b></div>
+        <p>I have been continuously covered for 72 months. After 60 months of continuous cover, a claim cannot be rejected for non-disclosure unless fraud is proved. Please review the rejection of my claim on this basis.</p>
+        <span class="btn" id="btn12">Approve</span><span class="ok" id="ok12">Customer approves.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 13 CONSOLE -->
+<section class="slide" id="s13" data-title="The distributor console">
+  <div class="eyebrow rv">The distributor's view</div>
+  <h2 class="rv" style="--i:1">Its own benefit, <em>counted from events.</em></h2>
+  <div class="body" style="margin-top:26px;align-items:flex-start">
+    <div class="con">
+      <div class="rv left" style="--i:2">
+        <div class="head"><div class="lab">HEADLINE · EXAMPLE CASES</div><div class="h">Of <b id="c13a">0</b> cases, <b id="c13b">0</b> needed the distributor.</div><span class="badge" style="font-size:18px">counted from the example cases</span></div>
+        <div class="counters" style="margin-top:22px">
+          <div class="ctr"><b>11</b>counters, each from event rows</div>
+          <div class="ctr"><b>0</b>invented numbers, projected savings or cost figures</div>
+        </div>
+      </div>
+      <div class="cases">
+        <div class="case rv right" style="--i:3"><div><b>Admission</b><small>health · coverage question</small></div><div>Insurer: Example General Insurance <small>file with a known deduction</small></div><span class="badge pine">routed away</span></div>
+        <div class="case rv right" style="--i:4"><div><b>Non-disclosure</b><small>health · claim denied</small></div><div>Insurer: Example General Insurance <small>moratorium ground · draft ready</small></div><span class="badge pine">routed away</span></div>
+        <div class="case rv right" style="--i:5"><div><b>Double debit</b><small>platform · payment failed</small></div><div>Distributor <small>support ticket</small></div><span class="badge">needs distributor</span></div>
+        <div class="counters rv right" style="--i:6;grid-template-columns:repeat(3,1fr)">
+          <div class="ctr">readiness checks run</div><div class="ctr">claims stopped, and why</div><div class="ctr">deductions explained</div>
+          <div class="ctr">coverage queries drafted</div><div class="ctr">insurer queries caught</div><div class="ctr">answers confirmed solved</div>
+        </div>
+        <p class="note rv" style="--i:7">"What would this save?" Multiply the count by your own cost per ticket. We do not invent that number.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 14 LANGUAGES -->
+<section class="slide dark" id="s14" data-title="Language">
+  <div class="eyebrow rv">Own language, own voice</div>
+  <h2 class="rv" style="--i:1">The whole site <em>speaks 11 languages.</em></h2>
+  <div class="body" style="margin-top:20px;align-items:center">
+    <div class="pills">
+      <span class="pill rv pop" style="--i:2">English<small>default</small></span><span class="pill rv pop" style="--i:3">हिन्दी<small>Hindi</small></span><span class="pill rv pop" style="--i:4">मराठी<small>Marathi</small></span><span class="pill rv pop" style="--i:5">বাংলা<small>Bengali</small></span><span class="pill rv pop" style="--i:6">தமிழ்<small>Tamil</small></span><span class="pill rv pop" style="--i:7">తెలుగు<small>Telugu</small></span><span class="pill rv pop" style="--i:8">ગુજરાતી<small>Gujarati</small></span><span class="pill rv pop" style="--i:9">ಕನ್ನಡ<small>Kannada</small></span><span class="pill rv pop" style="--i:10">മലയാളം<small>Malayalam</small></span><span class="pill rv pop" style="--i:11">ਪੰਜਾਬੀ<small>Punjabi</small></span><span class="pill rv pop" style="--i:12">ଓଡ଼ିଆ<small>Odia</small></span>
+    </div>
+    <div class="vp">
+      <div class="row rv right" style="--i:4"><div class="mic">🎙</div><div><b>Speak.</b> A voice note becomes text in the box, to check before sending.</div></div>
+      <div class="row rv right" style="--i:5"><div class="mic" style="animation:none">🔊</div><div><b>Praman answers aloud.</b> Every reply can be spoken back in the customer's language.</div></div>
+      <div class="keep rv" style="--i:7"><span>amounts held fixed</span><span>dates held fixed</span><span>the name Praman is never translated</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15 TRUST -->
+<section class="slide" id="s15" data-title="Privacy and honesty">
+  <div class="eyebrow rv">Trust, by construction</div>
+  <h2 class="rv" style="--i:1">Medical bills deserve <em>careful hands.</em></h2>
+  <div class="body" style="margin-top:20px">
+    <div class="six">
+      <div class="tc rv" style="--i:2"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div><h3>Consent first</h3><p>No document is read until the customer says yes, in their language.</p></div>
+      <div class="tc rv" style="--i:3"><div class="ico pine"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Masked before it leaves</h3><p>Aadhaar, PAN, account and policy numbers are masked in all text sent for AI processing.</p></div>
+      <div class="tc rv" style="--i:4"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h4"/></svg></div><h3>Fields, not files</h3><p>We keep extracted fields. The original is not kept unless the customer asks.</p></div>
+      <div class="tc rv" style="--i:5"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div><h3>"Delete everything" works</h3><p>Case, documents, letters and events, including from the console.</p>
+        <div class="del" id="del15"><div><span>demo-admission</span><span>✓</span></div><div><span>documents, letters</span><span>✓</span></div><div><span>events</span><span>✓</span></div></div></div>
+      <div class="tc rv" style="--i:6"><div class="ico amber"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></div><h3>Verified or badged</h3><p>Every legal value carries <b>verified_by</b>. Until a named person checks it, it shows <span class="badge" style="font-size:16px">Not yet verified</span></p></div>
+      <div class="tc rv" style="--i:7"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l18-7-7 18-2-8z"/></svg></div><h3>Nothing is filed</h3><p>Praman drafts. The customer approves. The screen says <b>"Approved and ready to send"</b>, and a test keeps it honest.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 16 PROOF -->
+<section class="slide" id="s16" data-title="Built and next">
+  <div class="eyebrow rv">What exists today</div>
+  <h2 class="rv" style="--i:1">Built, tested, <em>and honest about the rest.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0;margin-top:20px">
+    <div class="stats">
+      <div class="stat rv" style="--i:2"><b data-count="978">0</b><span>backend tests, all passing, none touching the network</span></div>
+      <div class="stat rv" style="--i:3"><b data-count="7">0</b><span>claim rules, each with blocked, clear and missing-fact tests</span></div>
+      <div class="stat rv" style="--i:4"><b data-count="11">0</b><span>languages across the site, voice in and out</span></div>
+      <div class="stat rv" style="--i:5"><b data-count="3">0</b><span>verdicts: file, do not file yet, file with a known deduction</span></div>
+    </div>
+    <div class="nx">
+      <div class="built rv left" style="--i:6"><h3>Built</h3><ul><li>Readiness engine, router, checklist, drafts</li><li>Coverage Q&amp;A with citations and a live, labelled news layer</li><li>Voice in and out, 11 languages</li><li>Consent, redaction, delete, distributor console</li></ul></div>
+      <div class="next rv right" style="--i:7"><h3>Next, not claimed</h3><ul><li>Lending "fair offer" ruleset: same engine, one YAML</li><li>Motor ruleset, and claim deadline reminders</li><li>Hand-checking every <b>UNVERIFIED</b> value against its source</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 17 CLOSE -->
+<section class="slide dark" id="s17" data-title="Close">
+  <div class="eyebrow rv">Praman · प्रमाण</div>
+  <h2 class="rv" style="--i:1">Stop the rejection <em>before it happens.</em></h2>
+  <p class="sub rv" style="--i:2">And send every question to the party that owes the answer.</p>
+  <div class="stamp2 rv" style="--i:4"><span class="badge pine" style="font-size:24px">Team HackOverFlow</span><span class="badge pine" style="font-size:24px">Rithvik Shetty</span><span class="badge pine" style="font-size:24px">Vinay Pokharkar</span></div>
+  <div class="footer-credit"><span>Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with or endorsed by Paytm.</span><span>Prototype. Example data. Nothing is filed or sent.</span></div>
+</section>
+
+<div id="bar"></div>
+<div id="count"></div>
+</div>
+</div>
+<div id="hint">← → or Space to move · F fullscreen · O overview</div>
+<div id="nav"><button id="prev" aria-label="Previous slide">‹</button><button id="next" aria-label="Next slide">›</button><button id="ov">▦</button><button id="fs">⛶</button></div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'), slides=[].slice.call(document.querySelectorAll('.slide'));
+  var bar=document.getElementById('bar'), count=document.getElementById('count'), brand=document.getElementById('brand');
+  var cur=-1, timers=[];
+  function later(fn,ms){var t=setTimeout(fn,ms);timers.push(t);return t}
+  function clearAll(){timers.forEach(clearTimeout);timers=[]}
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return [].slice.call((r||document).querySelectorAll(s))};
+  var reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var inr=function(n){return '₹'+Number(n).toLocaleString('en-IN')};
+
+  function fit(){
+    if(document.body.classList.contains('overview')){stage.style.transform='none';return}
+    var s=Math.min(innerWidth/1920,innerHeight/1080);
+    stage.style.transform='translate(-50%,-50%) scale('+s+')';
+  }
+  addEventListener('resize',fit);
+
+  function countTo(el,to,ms,fmt){
+    var t0=performance.now();
+    (function step(t){var p=Math.min(1,(t-t0)/ms),e=1-Math.pow(1-p,3),v=Math.round(to*e);
+      el.textContent=fmt?fmt(v):v; if(p<1&&!reduce)requestAnimationFrame(step); else el.textContent=fmt?fmt(to):to})(t0);
+  }
+
+  /* per-slide scripted animations; all state is reset on entry */
+  var scenes={
+    s5:function(){
+      var boxes=$$('#s5 .box'),arrows=$$('#s5 .arrow'),pipe=$$('#s5 .pipeline u');
+      boxes.forEach(function(b){b.classList.remove('lit')});arrows.forEach(function(a){a.classList.remove('lit')});pipe.forEach(function(p){p.classList.remove('lit')});
+      var seq=[['n',0],['a',0],['n',1],['a',1],['n',2],['a',2],['n',4],['p',0],['p',1],['p',2],['p',3],['n',3],['n',5],['a',3],['n',6],['n',7]];
+      seq.forEach(function(s,i){later(function(){
+        var el= s[0]=='n'? $('#s5 [data-n="'+s[1]+'"]') : s[0]=='a'? $('#s5 [data-a="'+s[1]+'"]') : $('#s5 [data-p="'+s[1]+'"]');
+        if(el)el.classList.add('lit');
+      },1300+i*520)});
+    },
+    s5b:function(){
+      var feeds=$$('#feeds5b .feed'),steps=$$('#s5b .nstep'),downs=$$('#s5b .ndown'),ans=$('#ans5b');
+      feeds.concat(steps,downs).forEach(function(e){e.classList.remove('lit')});ans.classList.remove('on');
+      feeds.forEach(function(f,i){later(function(){f.classList.add('lit')},1100+i*350)});
+      [0,1,2].forEach(function(k){
+        later(function(){downs[k].classList.add('lit')},2800+k*900);
+        later(function(){steps[k].classList.add('lit')},3100+k*900);
+      });
+      later(function(){ans.classList.add('on')},6200);
+    },
+    s6:function(){
+      var msgs=$$('#msgs6 .msg'),segs=$$('#bill6 .seg'),fs=$$('#s6 .f'),res=$('#res6'),cut=$('#cut6');
+      msgs.forEach(function(m){m.classList.remove('show')});segs.forEach(function(s){s.classList.remove('on');});
+      fs.forEach(function(f){f.classList.remove('on')});res.classList.remove('on');cut.textContent='₹0';
+      $$('#bill6 .seg.cut').forEach(function(x){x.remove()});
+      var base=900;
+      msgs.slice(0,3).forEach(function(m,i){later(function(){m.classList.add('show')},base+i*750)});
+      later(function(){segs[0].classList.add('on');segs[1].classList.add('on')},base+2800);
+      fs.forEach(function(f,i){later(function(){f.classList.add('on')},base+3900+i*650)});
+      later(function(){
+        res.classList.add('on');countTo(cut,35625,1600,inr);
+        /* hatch the cut share on the deductible segment: 35625 of 95000 = 37.5% of that segment */
+        var d=segs[0];var o=document.createElement('div');o.className='seg cut on';o.style.cssText='position:absolute;height:84px;width:0;transition:width 1.2s var(--ease);top:0;right:0;display:grid;place-items:center;font-size:18px;overflow:hidden';o.textContent='cut ₹35,625';
+        d.style.position='relative';d.appendChild(o);o.style.transform='none';o.style.transformOrigin='right';
+        requestAnimationFrame(function(){o.style.width='37.5%'});
+      },base+6000);
+      later(function(){msgs[3].classList.add('show')},base+7600);
+      later(function(){msgs[4].classList.add('show')},base+9000);
+    },
+    s9:function(){
+      var vals=['18','24','₹8,000','₹5,000','4 of 6','yes'],f=$$('#facts9 .fact');
+      f.forEach(function(x,i){x.classList.remove('on');$('strong',x).textContent='—'});
+      var vb=$('#vb9');vb.className='verdictbox pending rv right';vb.style.opacity=1;vb.style.transform='none';
+      $('#vlab9').textContent='FACTS PENDING';$('#vlab9').style.color='';$('#vh9').textContent='I need two more answers.';
+      $('#vp9').textContent="How old is the policy, and how long is this treatment's waiting period? Until then there is no verdict, and no assumption.";
+      var b=$('#vbadge9');b.textContent='asks the customer, in their language';b.className='badge';
+      [2,3,4,5].forEach(function(i,k){later(function(){f[i].classList.add('on');$('strong',f[i]).textContent=vals[i]},2200+k*500)});
+      later(function(){f[0].classList.add('on');$('strong',f[0]).textContent=vals[0]},5200);
+      later(function(){f[1].classList.add('on');$('strong',f[1]).textContent=vals[1]},6000);
+      later(function(){
+        vb.className='verdictbox done rv right';vb.style.opacity=1;vb.style.transform='none';
+        var l=$('#vlab9');l.textContent='DO NOT FILE YET';l.style.color='var(--stamp)';
+        $('#vh9').textContent='6 more months.';
+        $('#vp9').textContent='This treatment has a 24-month waiting period. Your policy is 18 months old. You can claim after 6 more months.';
+        b.textContent='Not yet verified';
+      },6900);
+    },
+    s10:function(){
+      var inbox=$('#inbox10'),slots=$$('#slots10 .slot'),n=$('#n10'),reply=$('#reply10');
+      $$('#inbox10 .fly').forEach(function(x){x.remove()});
+      slots.forEach(function(s){s.classList.remove('got');$('.st',s).textContent='missing'});n.textContent='0 / 6';reply.style.opacity=0;
+      var order=[1,3,0,2], names=['Discharge summary','Final bill','ID proof','Policy copy'];
+      var photos={1:'📷 photo: “Final bill”',3:'📷 photo: policy page',0:'📷 photo: “Discharge summary”',2:'📷 photo: ID card'};
+      var got=0;
+      order.forEach(function(k,i){
+        later(function(){
+          var f=document.createElement('div');f.className='fly';f.style.setProperty('--y',60+i*92);f.textContent=photos[k];inbox.appendChild(f);
+          f.animate([{transform:'translateX(0)',opacity:0},{transform:'translateX(300px)',opacity:1,offset:.6},{transform:'translateX(420px) scale(.5)',opacity:0}],{duration:1100,fill:'forwards',easing:'cubic-bezier(.3,.7,.3,1)'});
+          later(function(){
+            var s=slots[k];s.classList.add('got','flash');$('.st',s).textContent='received';later(function(){s.classList.remove('flash')},350);
+            got++;n.textContent=got+' / 6';
+            var miss=slots.filter(function(x){return !x.classList.contains('got')}).map(function(x){return x.textContent.replace(/^\d/,'').replace(/missing|received/,'')});
+            reply.textContent=got<4?'Got it. Still missing: '+miss.length+' documents.':'Two are still missing: Prescriptions and Claim form.';
+            reply.style.opacity=1;
+          },850);
+        },1200+i*1900);
+      });
+    },
+    s12:function(){
+      var fill=$('#fill12'),now=$('#now12'),g=$('#ground12'),btn=$('#btn12'),ok=$('#ok12');
+      fill.style.transition='none';now.style.transition='none';fill.style.width='0';now.style.left='0';now.textContent='0';g.classList.remove('on');
+      btn.textContent='Approve';btn.className='btn';ok.textContent='Customer approves.';ok.style.opacity=0;
+      void fill.offsetWidth;
+      later(function(){
+        fill.style.transition='width 3.2s cubic-bezier(.3,.6,.2,1)';now.style.transition='left 3.2s cubic-bezier(.3,.6,.2,1)';
+        fill.style.width='100%';now.style.left='calc(100% - 70px)';
+        countTo(now,72,3200);
+      },1000);
+      later(function(){g.classList.add('on')},3600);
+      later(function(){ok.style.opacity=1;btn.classList.add('press')},5600);
+      later(function(){btn.classList.remove('press');btn.classList.add('done');btn.textContent='Approved and ready to send';ok.textContent='Nothing is sent from here.'},5900);
+    },
+    s13:function(){
+      var a=$('#c13a'),b=$('#c13b');a.textContent='0';b.textContent='0';
+      later(function(){countTo(a,3,900);later(function(){countTo(b,1,700)},700)},1500);
+    },
+    s14:function(){
+      var pills=$$('#s14 .pill');
+      pills.forEach(function(p,i){later(function(){
+        p.animate([
+          {transform:'scale(1)',background:'rgba(255,255,255,.08)',color:'#fff',borderColor:'rgba(255,255,255,.19)',boxShadow:'0 0 0 0 rgba(143,224,196,0)'},
+          {transform:'scale(1.22) translateY(-6px)',background:'#8fe0c4',color:'#164537',borderColor:'#8fe0c4',boxShadow:'0 0 0 14px rgba(143,224,196,.25)',offset:.4},
+          {transform:'scale(1.22) translateY(-6px)',background:'#8fe0c4',color:'#164537',borderColor:'#8fe0c4',boxShadow:'0 0 0 14px rgba(143,224,196,.25)',offset:.65},
+          {transform:'scale(1)',background:'rgba(255,255,255,.08)',color:'#fff',borderColor:'rgba(255,255,255,.19)',boxShadow:'0 0 0 0 rgba(143,224,196,0)'}
+        ],{duration:700,easing:'cubic-bezier(.3,1.3,.5,1)'});
+      },2800+i*450)});
+    },
+    s15:function(){
+      var d=$('#del15');d.classList.remove('go');later(function(){d.classList.add('go')},3600);
+    },
+    s16:function(){
+      $$('#s16 [data-count]').forEach(function(el){el.textContent='0';later(function(){countTo(el,+el.dataset.count,1500)},700)});
+    }
+  };
+
+  function go(i){
+    i=Math.max(0,Math.min(slides.length-1,i));
+    if(i===cur)return;
+    clearAll();
+    if(cur>=0)slides[cur].classList.remove('active');
+    cur=i;var s=slides[i];
+    /* restart CSS animations */
+    $$('.rv,.stamp,.name span',s).forEach(function(e){e.style.animation='none'});void s.offsetWidth;
+    $$('.rv,.stamp,.name span',s).forEach(function(e){e.style.animation=''});
+    s.classList.add('active');
+    var dark=s.classList.contains('dark');
+    document.body.classList.toggle('dark-ui',dark);
+    bar.style.width=((i+1)/slides.length*100)+'%';
+    count.textContent=(i+1)+' / '+slides.length;
+    brand.style.display=i===0?'none':'block';
+    if(scenes[s.id])scenes[s.id]();
+    try{history.replaceState(null,'','#'+(i+1))}catch(e){}
+  }
+  function next(){go(cur+1)} function prev(){go(cur-1)}
+
+  addEventListener('keydown',function(e){
+    if(document.body.classList.contains('overview')){if(e.key==='o'||e.key==='O'||e.key==='Escape')toggleOv();return}
+    var k=e.key;
+    if(k==='ArrowRight'||k===' '||k==='PageDown'||k==='Enter'){e.preventDefault();next()}
+    else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'){e.preventDefault();prev()}
+    else if(k==='Home')go(0); else if(k==='End')go(slides.length-1);
+    else if(k==='f'||k==='F')toggleFs(); else if(k==='o'||k==='O')toggleOv();
+  });
+  var tx=null;
+  addEventListener('touchstart',function(e){tx=e.touches[0].clientX},{passive:true});
+  addEventListener('touchend',function(e){if(tx===null)return;var d=e.changedTouches[0].clientX-tx;if(Math.abs(d)>50)(d<0?next:prev)();tx=null});
+  document.getElementById('prev').onclick=prev;document.getElementById('next').onclick=next;
+  document.getElementById('fs').onclick=toggleFs;document.getElementById('ov').onclick=toggleOv;
+  function toggleFs(){if(!document.fullscreenElement)document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen();else document.exitFullscreen()}
+  function toggleOv(){
+    var on=document.body.classList.toggle('overview');
+    if(on){slides.forEach(function(s,i){s.onclick=function(){toggleOv();cur=-1;go(i)}})}
+    else{slides.forEach(function(s){s.onclick=null});fit();var c=cur;cur=-1;go(c<0?0:c)}
+    fit();
+  }
+  setTimeout(function(){document.getElementById('hint').style.opacity=0},6000);
+  fit();
+  var start=parseInt((location.hash||'').slice(1),10);
+  go(isNaN(start)?0:start-1);
+})();
+</script>
+</body>
+</html>
