@@ -126,6 +126,12 @@ export function ChatWidget() {
     if (chatOpen) input.current?.focus();
   }, [chatOpen]);
 
+  // Open, the chat takes the right side of the page and the page moves left to make room (globals.css).
+  useEffect(() => {
+    document.documentElement.classList.toggle("chat-open", chatOpen);
+    return () => document.documentElement.classList.remove("chat-open");
+  }, [chatOpen]);
+
   function showReply(reply: ChatReply, autoplay: boolean) {
     const answers: Item[] = reply.messages.map((m) => ({
       id: nextId++,
@@ -295,10 +301,10 @@ export function ChatWidget() {
   return (
     <section
       aria-label="Chat with Praman"
-      className="fixed inset-x-0 bottom-0 z-40 flex max-h-[85vh] flex-col border border-line bg-paper shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[400px] sm:rounded-lg"
+      className="fixed inset-0 z-40 flex flex-col bg-paper shadow-2xl lg:bottom-4 lg:left-auto lg:right-4 lg:top-[calc(var(--header-height)+1rem)] lg:w-[var(--chat-width)] lg:overflow-hidden lg:rounded-xl lg:border lg:border-line"
     >
       <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-        <h2 className="flex-1 text-lg font-semibold">Ask Praman</h2>
+        <h2 className="flex-1 whitespace-nowrap text-lg font-semibold">Ask Praman</h2>
         <label className="sr-only" htmlFor="chat-language">
           Language
         </label>
@@ -307,7 +313,7 @@ export function ChatWidget() {
           translate="no"
           value={language}
           onChange={(event) => setLanguage(event.target.value)}
-          className="rounded-md border border-line bg-white px-2 py-1 text-sm"
+          className="min-w-0 max-w-[9.5rem] rounded-md border border-line bg-white px-2 py-1 text-sm"
         >
           {LANGUAGES.map((l) => (
             <option key={l.code} value={l.code}>

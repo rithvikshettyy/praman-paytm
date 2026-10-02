@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 
 import { LANGUAGES, useSession } from "@/lib/session";
 
@@ -19,6 +20,19 @@ function Seal() {
 export function SiteHeader() {
   const pathname = usePathname();
   const { caseId, language, setLanguage } = useSession();
+  const header = useRef<HTMLElement | null>(null);
+
+  // The chat floats just below this bar (globals.css reads --header-height), however tall it wraps.
+  useEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    const publish = () =>
+      document.documentElement.style.setProperty("--header-height", `${element.getBoundingClientRect().height}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const links = [
     { href: "/policies", label: "My policies" },
     { href: "/readiness", label: "Claim readiness" },
@@ -27,8 +41,8 @@ export function SiteHeader() {
     { href: "/console", label: "Console" },
   ];
   return (
-    <header className="border-b border-line bg-paper">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <header ref={header} className="border-b border-line bg-paper">
+      <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
         <Link href="/" className="flex items-center gap-2 text-pine">
           <Seal />
           <span translate="no" className="text-2xl font-bold tracking-tight text-ink">

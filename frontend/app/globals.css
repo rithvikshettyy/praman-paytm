@@ -43,3 +43,23 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The chat opens as a card floating on the right, below the nav bar with a gap on every side; on
+   wide screens the page moves left to make room for it instead of sitting underneath. On phones
+   the chat covers the screen. The shift is instant on purpose: animating the page while the nav
+   bar's offset applied at once made the nav buttons jump sideways. */
+:root {
+  --chat-width: 420px;
+  --header-height: 68px; /* measured by SiteHeader */
+}
+
+@media (min-width: 1024px) {
+  html.chat-open body {
+    padding-right: calc(var(--chat-width) + 2rem);
+  }
+
+  /* The chat floats below the nav bar, so the bar keeps the full width. */
+  html.chat-open body > header {
+    margin-right: calc(-1 * (var(--chat-width) + 2rem));
+  }
+}
