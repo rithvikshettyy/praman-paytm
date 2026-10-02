@@ -14,6 +14,36 @@ export interface ChatMessage {
   unverified: boolean;
   citations: Citation[];
   audio_url: string | null;
+  /** Ask "Did this solve it?" under this message: answer (Yes / No) or not_found (get a person). */
+  feedback: { answer_id: number; kind: "answer" | "not_found" } | null;
+}
+
+export interface HandoffBrief {
+  case_id: string;
+  example: boolean;
+  language: { code: string; name: string };
+  product: string | null;
+  problem: string | null;
+  situation: string | null;
+  respondent: string | null;
+  why_here: { reason: string; text: string };
+  she_wrote: { text: string; text_en: string | null }[];
+  conversation: {
+    at: string;
+    question: string;
+    question_en: string | null;
+    answered: boolean;
+    source: string;
+    pages: number[];
+    answer_en: string;
+    solved: boolean | null;
+  }[];
+  readiness: { outcome: string | null; deduction: string | null; paper_fixes: string[] };
+  facts: { label: string; value: string }[];
+  documents: { shared_in_chat: boolean; claim_documents: string[]; claim_documents_missing: string[]; read: string[] };
+  drafts: { kind: string; addressee: string; status: string }[];
+  next_step: string;
+  text: string;
 }
 
 export interface ChatReply {
@@ -189,6 +219,9 @@ export interface ConsoleCase {
   respondent: string | null;
   respondent_name: string | null;
   distributor_owned: boolean | null;
+  asked_for_person: boolean;
+  needs_distributor: boolean;
+  status: "pending" | "resolved";
   verdict: Outcome | null;
   clock: { step: string; respond_by: string | null; verified_by: string | null } | null;
   last_event_at: string | null;
@@ -205,5 +238,9 @@ export interface Metrics {
     escalations_drafted: number;
     cases_routed_away: number;
     insurer_queries_caught: number;
+    answers_given: number;
+    answers_confirmed_solved: number;
+    asked_for_a_person: number;
+    cases_marked_resolved: number;
   };
 }

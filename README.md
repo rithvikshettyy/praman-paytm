@@ -128,7 +128,8 @@ flowchart LR
 | N3 | Document checklist over WhatsApp: photos tick slots, with a numbered-list fallback | `backend/app/cases.py`, `backend/app/channels/whatsapp.py` |
 | N5 | Respondent router with per-respondent ladders and clocks | `backend/app/core/routing.py` |
 | N6 | Consent, redaction, delete everything | `backend/app/conversation.py`, `backend/app/services/redact.py` |
-| N8 | Distributor console: headline, seven counters (including insurer queries caught before filing), case list | `backend/app/console.py`, `frontend/app/console` |
+| N8 | Distributor console: headline, eleven counters, case list with Resolved or Pending per case, and a one-screen brief for every case | `backend/app/console.py`, `backend/app/handoff.py`, `frontend/app/console` |
+| Self-service | "Did this solve it?" under each answer; a Yes is counted as solved without an agent, a No asks for a person and builds the agent's brief | `backend/app/conversation.py`, `frontend/components/ChatWidget.tsx` |
 | Coverage Q&A | Answers with citations for questions, in her language | `backend/app/rag/` |
 | Web | Demo site: chat with voice, policies, readiness, checklist, case, console | `frontend/` |
 
@@ -168,7 +169,7 @@ backend/
     eval/         golden questions for the RAG eval
     bill_heads.yaml
   scripts/        seed_demo.py, reset_demo.py, verify_report.py
-  tests/          930 tests, no network
+  tests/          960 tests, no network
 frontend/         Next.js demo site
 PRD-PAYTM.md      the hackathon build plan
 CLAUDE.md         standing rules and module map for contributors

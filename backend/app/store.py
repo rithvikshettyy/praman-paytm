@@ -100,7 +100,13 @@ EVENT_KINDS = (
     "clock_started",  # detail: ladder, step, started_on, respond_by, verified_by
     "draft_approved",  # detail: draft_id, kind. Approved and ready to send; nothing is sent
     "papers_checked",  # detail: fix (problems an insurer would query), heads_up. No names or amounts
+    "answer_given",  # detail: question, status (answered|not_found), source (her_document|sources), pages, answer_en. Redacted
+    "answer_feedback",  # detail: answer_id, solved. "Did this solve it?"; the first answer to each question stands
+    "agent_requested",  # detail: reason (not_solved|not_found), answer_id. She asked for a person after an answer
+    "grievance_reported",  # detail: text (redacted), grievance_class, product. What she wrote when something went wrong
+    "case_status",  # detail: status (resolved|pending). An agent's mark on the console; the latest one stands
 )
+CASE_STATUSES = ("pending", "resolved")
 
 # One row per case for the console: its latest route, verdict and clock, each
 # read from the latest event of that kind (never from columns an event did
@@ -125,14 +131,18 @@ SELECT
     json_extract(k.detail, '$.respond_by')          AS clock_respond_by,
     json_extract(k.detail, '$.verified_by')         AS clock_verified_by,
     (SELECT MAX(at) FROM events e WHERE e.case_id = c.id) AS last_event_at,
-    EXISTS (SELECT 1 FROM documents d WHERE d.case_id = c.id) AS has_documents
+    EXISTS (SELECT 1 FROM documents d WHERE d.case_id = c.id) AS has_documents,
+    EXISTS (SELECT 1 FROM events a WHERE a.case_id = c.id AND a.kind = 'agent_requested') AS agent_requested,
+    COALESCE(json_extract(s.detail, '$.status'), 'pending') AS agent_status
 FROM cases c
 LEFT JOIN latest lr ON lr.case_id = c.id AND lr.kind = 'case_routed'
 LEFT JOIN events r  ON r.id = lr.id
 LEFT JOIN latest lv ON lv.case_id = c.id AND lv.kind = 'readiness_checked'
 LEFT JOIN events v  ON v.id = lv.id
 LEFT JOIN latest lk ON lk.case_id = c.id AND lk.kind = 'clock_started'
-LEFT JOIN events k  ON k.id = lk.id;
+LEFT JOIN events k  ON k.id = lk.id
+LEFT JOIN latest ls ON ls.case_id = c.id AND ls.kind = 'case_status'
+LEFT JOIN events s  ON s.id = ls.id;
 """
 
 
@@ -283,6 +293,20 @@ def record_event(
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def case_events(conn: sqlite3.Connection, case_id: str, kind: str, limit: int | None = None) -> list[dict[str, Any]]:
+    """A case's events of one kind, oldest first; with ``limit``, the latest few (still oldest first)."""
+    rows = conn.execute(
+        "SELECT * FROM events WHERE case_id = ? AND kind = ? ORDER BY id DESC" + (" LIMIT ?" if limit else ""),
+        (case_id, kind, limit) if limit else (case_id, kind),
+    ).fetchall()
+    out = []
+    for row in reversed(rows):
+        item = dict(row)
+        item["detail"] = json.loads(item["detail"])
+        out.append(item)
+    return out
 
 
 def latest_event(conn: sqlite3.Connection, case_id: str, kind: str) -> dict[str, Any] | None:

@@ -64,11 +64,21 @@ def seed(conn) -> tuple[str, ...]:
     facts.update(cases.checklist_facts(cases.checklist_state(conn, ADMISSION)), **EXAMPLE_ANSWERS)
     cases.route_case(conn, ADMISSION, "health_policy", None)  # a coverage question: the insurer's
     cases.check_readiness(conn, ADMISSION, Facts(**facts))
+    # She asked about the room limit, got a cited answer, and said it solved her question.
+    answer = store.record_event(conn, ADMISSION, "answer_given", {
+        "question": "What is the room rent limit in my policy?", "status": "answered", "source": "sources",
+        "pages": [1], "answer_en": "Room rent is payable up to 1% of the sum insured per day.",
+    })
+    store.record_event(conn, ADMISSION, "answer_feedback", {"answer_id": answer, "solved": True})
 
     # 2. Claim denied for non-disclosure on a policy held six years.
     _open(conn, MORATORIUM, "mr-IN")
     _read(conn, MORATORIUM, "policy")  # the insurer's legal name comes from here
     _complete_checklist(conn, MORATORIUM)
+    store.record_event(conn, MORATORIUM, "grievance_reported", {
+        "text": "My claim was rejected for non-disclosure, but my policy is six years old.",
+        "grievance_class": "insurance/claim_denied", "product": "health_policy",
+    })
     cases.route_case(conn, MORATORIUM, "health_policy", "insurance/claim_denied")
     cases.check_readiness(conn, MORATORIUM, Facts(
         denial_reason="non_disclosure", months_continuous_cover=72, months_held=72,
@@ -79,6 +89,9 @@ def seed(conn) -> tuple[str, ...]:
 
     # 3. Premium debited twice.
     _open(conn, DOUBLE_DEBIT, "mr-IN")
+    store.record_event(conn, DOUBLE_DEBIT, "grievance_reported", {
+        "text": "My premium was debited twice.", "grievance_class": "platform/payment_failed", "product": "health_policy",
+    })
     cases.route_case(conn, DOUBLE_DEBIT, "health_policy", "platform/payment_failed")
     return EXAMPLES
 

@@ -16,7 +16,7 @@ from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Request, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app import cases, config, console, conversation, readiness, store
+from app import cases, config, console, conversation, handoff, readiness, store
 from app.channels import whatsapp
 from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
@@ -211,7 +211,7 @@ def readiness_check(body: dict = Body(...)):
 
 @app.get("/api/console/cases")
 def console_cases(filter: str | None = None):
-    """Case list; filter=needs_paytm | routed_away."""
+    """Case list; filter=needs_paytm | routed_away | resolved. Without a filter, every case not marked resolved."""
     conn = store.connect()
     try:
         return {"cases": console.case_list(conn, filter)}
@@ -219,6 +219,22 @@ def console_cases(filter: str | None = None):
         return JSONResponse({"error": str(exc)}, status_code=400)
     finally:
         conn.close()
+
+
+@app.post("/api/console/cases/{case_id}/status")
+def set_case_status(case_id: str, body: dict = Body(...)):
+    """An agent marks a case resolved (it leaves the list) or pending (it comes back)."""
+    status = body.get("status")
+    if status not in store.CASE_STATUSES:
+        return _bad(f"status must be one of {list(store.CASE_STATUSES)}.")
+    conn = store.connect()
+    try:
+        if store.get_case(conn, case_id) is None:
+            return _bad("No such case.", 404)
+        store.record_event(conn, case_id, "case_status", {"status": status})
+    finally:
+        conn.close()
+    return {"case_id": case_id, "status": status}
 
 
 @app.get("/api/metrics")
@@ -304,6 +320,8 @@ def _chat_reply(reply: conversation.Reply, speak: bool) -> dict:
             "unverified": message.unverified,
             "citations": list(message.citations),
             "audio_url": voice.speak(text, reply.language) if speak else None,
+            # "Did this solve it?": the id to answer with, and which question to ask
+            "feedback": {"answer_id": message.feedback[0], "kind": message.feedback[1]} if message.feedback else None,
         })
     return {"case_id": reply.case_id, "language": reply.language, "messages": messages}
 
@@ -321,6 +339,26 @@ def _converse(session_id, text: str, language, insurer, product, speak: bool):
     finally:
         conn.close()
     return _chat_reply(reply, speak)
+
+
+@app.post("/api/feedback")
+def feedback(body: dict = Body(...)):
+    """Her Yes or No to "Did this solve it?": {session_id, answer_id, solved, language?}.
+    A Yes is counted on the console; a No asks for a person, who then sees a brief."""
+    user = _web_user(body.get("session_id"))
+    answer_id, solved = body.get("answer_id"), body.get("solved")
+    if user is None:
+        return _bad("session_id must be 8 to 64 letters, digits or hyphens.")
+    if not isinstance(answer_id, int) or isinstance(answer_id, bool) or not isinstance(solved, bool):
+        return _bad("Send answer_id (a number) and solved (true or false).")
+    conn = store.connect()
+    try:
+        reply, recorded = conversation.give_feedback(conn, user, answer_id, solved, body.get("language"))
+    except conversation.UnknownAnswer:
+        return _bad("That answer is not one you were given.", 404)
+    finally:
+        conn.close()
+    return {**_chat_reply(reply, speak=False), "solved": recorded}
 
 
 @app.post("/api/chat")
@@ -513,6 +551,17 @@ def case_page(case_id: str):
     finally:
         conn.close()
     return detail if detail is not None else _bad("No such case.", 404)
+
+
+@app.get("/api/case/{case_id}/brief")
+def case_brief(case_id: str):
+    """The agent's brief for a case: problem, facts, documents, what she asked and what Praman answered."""
+    conn = store.connect()
+    try:
+        found = handoff.brief(conn, case_id)
+    finally:
+        conn.close()
+    return found if found is not None else _bad("No such case.", 404)
 
 
 @app.post("/api/case/{case_id}/draft")

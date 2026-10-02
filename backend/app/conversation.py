@@ -34,6 +34,7 @@ from app import cases, config, store
 from app.clients import sarvam
 from app.core import agent, ladders
 from app.services import documents, i18n
+from app.services.redact import redact
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,12 @@ ASK_FOR_POLICY = (
     "I answer only from your own policy, so I will not guess. Send a photo or PDF of the policy (health, bike, "
     "car, life, travel or any other) and ask again, or I can write the question to your insurer for you."
 )
+FEEDBACK_SOLVED = "Glad that helped. Ask me anything else about your policy, or send another document."
+FEEDBACK_PERSON = (
+    "I have passed your question and my answer to the support team with a short summary, so you will not "
+    "need to explain it again. Nothing has been sent to your insurer."
+)
+MAX_QUESTION, MAX_ANSWER = 300, 500  # what is kept of her words and of the answer, for the agent's brief
 HELP = (
     "I did not follow that. Ask me a question about your insurance, tell me what went wrong with a claim, "
     "or send a photo or PDF of your policy."
@@ -113,6 +120,9 @@ class Message:
     unverified: bool = False  # relies on a value still marked UNVERIFIED: show the badge
     citations: tuple[dict, ...] = ()
     localized: bool = False  # already in her language; do not translate again
+    # (answer_id, kind): the chat asks "Did this solve it?" under this message. kind is "answer"
+    # (Yes / No, I need help) or "not_found" (offer to get a person).
+    feedback: tuple[int, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -188,7 +198,7 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
         return (Message(FOLLOW_UP if _has_hers(case["id"]) else GREETING),)
     unplaced_grievance = found.intent == "grievance" and not found.grievance_class
     if found.intent in (None, "question", "pre_decision") or unplaced_grievance:
-        from_hers = _ask_hers(case["id"], text, language)  # her own policy may already say what to do
+        from_hers = _ask_hers(conn, case["id"], text, language)  # her own policy may already say what to do
         if from_hers:
             return from_hers
     if found.intent == "question":
@@ -197,15 +207,21 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
             text, language=language, insurer=insurer, product=product,
             names=cases.respondent_names(conn, case["id"]),
         )
+        answer_id = _log_answer(conn, case["id"], text, result, "sources")
         if result.status != "answered":
+            offer = (answer_id, "not_found")  # she can ask for a person
             if _has_hers(case["id"]):
                 if result.handoff is None:  # say we looked in her documents, not "which policy is this?"
-                    return (Message(NOT_IN_HERS),)
+                    return (Message(NOT_IN_HERS, feedback=offer),)
             else:
-                return (Message(ASK_FOR_POLICY),)  # nothing of hers to answer from yet: ask for it
-        return (_cited(result),)
+                return (Message(ASK_FOR_POLICY, feedback=offer),)  # nothing of hers to answer from yet: ask for it
+            return (_cited(result, offer),)
+        return (_cited(result, (answer_id, "answer")),)
     if found.intent == "grievance" and found.grievance_class:
         product = found.product or case.get("product") or _product_of_hers(case["id"])
+        store.record_event(conn, case["id"], "grievance_reported", {
+            "text": redact(text)[:MAX_QUESTION], "grievance_class": found.grievance_class, "product": product,
+        })
         route = cases.route_case(conn, case["id"], product, found.grievance_class)
         if route is None:
             return (Message(NEEDS_DETAIL),)
@@ -220,12 +236,26 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
 # --- Her own documents (web chat) ---------------------------------------------------
 
 
-def _cited(result) -> Message:
+def _cited(result, feedback: tuple[int, str] | None = None) -> Message:
     citations = tuple({"label": c.label, **asdict(c)} for c in result.citations)
-    return Message(result.text, unverified=result.unverified, citations=citations, localized=True)
+    return Message(result.text, unverified=result.unverified, citations=citations, localized=True, feedback=feedback)
 
 
-def _ask_hers(case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
+def _log_answer(conn: sqlite3.Connection, case_id: str, question: str, result, source: str) -> int:
+    """Record that Praman answered (or could not), for the agent's brief and the console's counters.
+    Her words and the answer are masked first; they are deleted with the case."""
+    answered = result is not None and result.status == "answered"
+    return store.record_event(conn, case_id, "answer_given", {
+        "question": redact(question)[:MAX_QUESTION],
+        "status": "answered" if answered else "not_found",
+        "source": source,
+        "product": _product_of_hers(case_id),  # the kind of policy she sent, if it was clear
+        "pages": sorted({c.page for c in result.citations}) if answered else [],
+        "answer_en": redact(without_citations(result.text_en))[:MAX_ANSWER] if answered else "",
+    })
+
+
+def _ask_hers(conn: sqlite3.Connection, case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
     """Answer from the documents she sent in this chat, if any; None when they do not say."""
     from app.rag import mine
 
@@ -241,7 +271,7 @@ def _ask_hers(case_id: str, text: str, language: str) -> tuple[Message, ...] | N
         finally:
             mine.drop(found)
         if result.status == "answered":
-            return (_cited(result),)
+            return (_cited(result, (_log_answer(conn, case_id, text, result, "her_document"), "answer")),)
     return None
 
 
@@ -314,6 +344,45 @@ def _explain(conn, case: dict, photos: list[Attachment], text: str, language: st
         if summary.status == "answered":
             messages.append(_cited(summary))
     return messages + [offer]
+
+
+# --- "Did this solve it?" --------------------------------------------------------------
+
+
+class UnknownAnswer(LookupError):
+    """The answer is not one this person was given."""
+
+
+def give_feedback(
+    conn: sqlite3.Connection, user: str, answer_id: int, solved: bool, language: str | None = None
+) -> tuple[Reply, bool]:
+    """Her Yes or No to "Did this solve it?": the reply, and what was recorded. A Yes is counted on
+    the console; a No also asks for a person, who then sees a brief. The first answer to each
+    question stands, so a repeated tap counts once."""
+    case = store.find_case_for_user(conn, user)
+    row = conn.execute(
+        "SELECT json_extract(detail, '$.status') AS status FROM events WHERE id = ? AND case_id = ? AND kind = 'answer_given'",
+        (answer_id, case["id"] if case else ""),
+    ).fetchone()
+    if case is None or row is None:
+        raise UnknownAnswer(f"no answer {answer_id} for this person")
+    earlier = conn.execute(
+        "SELECT json_extract(detail, '$.solved') AS solved FROM events "
+        "WHERE case_id = ? AND kind = 'answer_feedback' AND json_extract(detail, '$.answer_id') = ?",
+        (case["id"], answer_id),
+    ).fetchone()
+    if earlier is not None:
+        solved = bool(earlier["solved"])
+    else:
+        store.record_event(conn, case["id"], "answer_feedback", {"answer_id": answer_id, "solved": solved})
+        if not solved:
+            store.record_event(conn, case["id"], "agent_requested", {
+                "reason": "not_solved" if row["status"] == "answered" else "not_found", "answer_id": answer_id,
+            })
+    chosen = language if language in config.SUPPORTED_LANGUAGES else None
+    reply = Reply(case["id"], chosen or case.get("language") or config.DEFAULT_LANGUAGE,
+                  (Message(FEEDBACK_SOLVED if solved else FEEDBACK_PERSON),))
+    return reply, solved
 
 
 # --- One message in, one reply out -----------------------------------------------
