@@ -53,8 +53,7 @@ NEEDS_DETAIL = "Tell me which policy or loan this is about, and what happened, s
 PRE_DECISION = "Before you decide, send me a photo of the policy or the loan offer and I will check it for you."
 GREETING = (
     "Hello, I am Praman. Send me any insurance policy (health, bike, car, life, travel or home) and ask me "
-    "anything about it, in your language. I can also check a health claim before you file it, and tell you "
-    "who owes you an answer when something goes wrong."
+    "anything about it, in your language."
 )
 FOLLOW_UP = (
     "Ask me anything about the policy you sent: what it covers and what it does not, its dates and amounts, "
