@@ -51,71 +51,18 @@ export default function ConsolePage() {
     }
   }
   const c = metrics.data?.counters;
-  const why = c ? Object.entries(c.claims_stopped_why) : [];
-
-  const counters = c
-    ? [
-        { label: "Readiness checks run", value: c.readiness_checks_run },
-        { label: "Claims stopped before filing", value: c.claims_stopped },
-        { label: "Known deductions explained", value: c.known_deductions_explained },
-        { label: "Coverage questions drafted", value: c.coverage_queries_drafted },
-        { label: "Escalations drafted", value: c.escalations_drafted },
-        { label: `Cases routed away from ${distributor}`, value: c.cases_routed_away },
-        { label: "Insurer queries caught before filing", value: c.insurer_queries_caught },
-        { label: "Answers given in the chat", value: c.answers_given },
-        { label: "Answers she confirmed solved her question", value: c.answers_confirmed_solved },
-        { label: "Cases where she asked for a person", value: c.asked_for_a_person },
-        { label: "Complaints registered", value: c.complaints_registered },
-        { label: "Complaints waiting for a person", value: c.complaints_pending },
-        { label: "Cases an agent marked resolved", value: c.cases_marked_resolved },
-      ]
-    : [];
 
   return (
     <div className="space-y-8">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Distributor console</h1>
         <p className="text-sm text-muted">
-          Refreshes every 5 seconds{metrics.updatedAt ? `, last at ${metrics.updatedAt.toLocaleTimeString("en-IN")}` : ""}. Every number is counted from recorded events.
+          Refreshes every 5 seconds{list.updatedAt ? `, last at ${list.updatedAt.toLocaleTimeString("en-IN")}` : ""}.
         </p>
       </header>
 
       {(metrics.error || list.error) && (
-        <ErrorNote message={`${metrics.error ?? list.error}${metrics.data ? " The numbers below are from the last successful refresh." : ""}`} />
-      )}
-
-      <section aria-label="Headline" className="rounded-lg border border-line bg-white p-6">
-        {metrics.loading && !metrics.data ? (
-          <Loading label="Counting" />
-        ) : metrics.data ? (
-          <>
-            <p className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">{metrics.data.headline.text}</p>
-            {c && c.answers_given > 0 && (
-              <p className="mt-3 text-lg text-muted">
-                Of {c.answers_given} {c.answers_given === 1 ? "answer" : "answers"} Praman gave, she confirmed{" "}
-                {c.answers_confirmed_solved} solved her question, with no agent involved.
-              </p>
-            )}
-          </>
-        ) : null}
-      </section>
-
-      {c && (
-        <section aria-label="Counters">
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {counters.map((item) => (
-              <div key={item.label} className="rounded-lg border border-line bg-white p-4">
-                <dt className="text-sm text-muted">{item.label}</dt>
-                <dd className="mt-1 text-3xl font-semibold">{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {why.length > 0 && (
-            <p className="mt-3 text-sm text-muted">
-              Why claims were stopped: {why.map(([rule, count]) => `${humanise(rule)} (${count})`).join(", ")}.
-            </p>
-          )}
-        </section>
+        <ErrorNote message={`${metrics.error ?? list.error}${list.data ? " The list below is from the last successful refresh." : ""}`} />
       )}
 
       <div role="tablist" aria-label="Console" className="flex gap-1 border-b border-line">
