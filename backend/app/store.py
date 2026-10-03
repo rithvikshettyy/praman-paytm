@@ -105,6 +105,7 @@ EVENT_KINDS = (
     "agent_requested",  # detail: reason (not_solved|not_found), answer_id. She asked for a person after an answer
     "grievance_reported",  # detail: text (redacted), grievance_class, product. What she wrote when something went wrong
     "case_status",  # detail: status (resolved|pending). An agent's mark on the console; the latest one stands
+    "journey_chosen",  # detail: journey (find|check|complain). Her pick from the WhatsApp menu; the latest one stands
 )
 CASE_STATUSES = ("pending", "resolved")
 
