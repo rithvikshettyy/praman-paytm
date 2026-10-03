@@ -443,9 +443,23 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
     <div class="three">
       <div class="promise rv" style="--i:2"><span class="n">1</span><h3>Stops avoidable rejections</h3><p>A rule engine checks the claim against the policy and bill <b>before</b> filing. One of three answers: file, do not file yet, or file with a known deduction.</p></div>
       <div class="promise rv" style="--i:3"><span class="n">2</span><h3>Sends it to the right party</h3><p>A router names who owes the answer: insurer, lender or distributor. Each has its own first step and its own clock.</p></div>
-      <div class="promise rv" style="--i:4"><span class="n">3</span><h3>Shows the distributor its benefit</h3><p>A console counts, from recorded events only, which cases needed the distributor and which went straight to the insurer.</p></div>
+      <div class="promise rv" style="--i:4"><span class="n">3</span><h3>Shows the distributor what needs it</h3><p>A console lists the cases that need the distributor and the complaints waiting for a person, read from recorded events only.</p></div>
     </div>
-    <div class="nots rv" style="--i:6"><b style="color:var(--ink)">What it does not do:</b> <span class="badge red">recommend a policy</span><span class="badge red">predict approval</span><span class="badge red">score credit</span><span class="badge red">file anything automatically</span></div>
+    <div class="nots rv" style="--i:6"><b style="color:var(--ink)">What it does not do:</b> <span class="badge red">rank or recommend a policy</span><span class="badge red">predict approval</span><span class="badge red">score credit</span><span class="badge red">file anything automatically</span></div>
+  </div>
+</section>
+
+<!-- 4b THREE WAYS IN -->
+<section class="slide" id="s4b" data-title="Three ways in">
+  <div class="eyebrow rv">How a customer starts</div>
+  <h2 class="rv" style="--i:1">Pick a start. <em>Praman does the rest.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="three">
+      <div class="promise rv" style="--i:2;min-height:0"><span class="n">1</span><h3 style="margin-top:80px">Find a policy</h3><p style="font-size:25px">Tap-to-answer questions: who is covered (parents too), ages, any illness, cover or payout wanted, years. Then options found online, unranked, and what to check before buying.</p></div>
+      <div class="promise rv" style="--i:3;min-height:0"><span class="n">2</span><h3 style="margin-top:80px">Check my policy</h3><p style="font-size:25px">Send the PDF or a photo and ask anything. Each answer comes from the document or the rules, with its page. If it is not there, Praman says so.</p></div>
+      <div class="promise rv" style="--i:4;min-height:0"><span class="n">3</span><h3 style="margin-top:80px">Complaint</h3><p style="font-size:25px">Say what went wrong, send the policy or just its number. If Praman cannot settle it, or she asks for a person, the complaint is registered with how to reach her.</p></div>
+    </div>
+    <div class="nots rv" style="--i:6"><b style="color:var(--ink)">By design:</b> <span class="badge pine">only the kind of cover goes to the web search, never ages, names or illness</span><span class="badge pine">answers kept in memory, not stored</span><span class="badge pine">a complaint needs her yes</span></div>
   </div>
 </section>
 
@@ -663,28 +677,53 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
   </div>
 </section>
 
+<!-- 12b DELIVERY AND FOLLOW-UP -->
+<section class="slide" id="s12b" data-title="Delivery and follow-up">
+  <div class="eyebrow rv">After she approves</div>
+  <h2 class="rv" style="--i:1">Praman decides what and to whom. <em>n8n decides how and when.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0;margin-top:10px">
+    <div class="three">
+      <div class="promise rv" style="--i:2;min-height:0"><span class="n">1</span><h3 style="margin-top:80px">Approve, and agree</h3><p style="font-size:25px">She approves the letter and agrees to Praman contacting the insurer for her. Without both, nothing leaves. Until then the screen says "Approved and ready to send".</p></div>
+      <div class="promise rv" style="--i:3;min-height:0"><span class="n">2</span><h3 style="margin-top:80px">n8n delivers</h3><p style="font-size:25px">The letter goes out with account, Aadhaar, PAN and policy numbers masked, signed with a shared secret. n8n sends it and reports back. Only then is it marked sent.</p></div>
+      <div class="promise rv" style="--i:4;min-height:0"><span class="n">3</span><h3 style="margin-top:80px">n8n watches the clock</h3><p style="font-size:25px">It waits out that step's window, then asks Praman what is due. The case's own ladder answers: escalate, ask an agent, wait or stop. The agent gets an email, she gets a nudge.</p></div>
+    </div>
+    <div class="nots rv" style="--i:6"><b style="color:var(--ink)">Honest wording:</b> <span class="badge pine">"sent" means n8n reported it went out</span><span class="badge red">never "the insurer received it"</span><span class="badge">stops if resolved, deleted or consent withdrawn</span></div>
+  </div>
+</section>
+
+<!-- 12c PREMIUM REMINDERS -->
+<section class="slide" id="s12c" data-title="Premium reminders">
+  <div class="eyebrow rv">When she asks</div>
+  <h2 class="rv" style="--i:1">A reminder to pay the premium, <em>only if she wants one.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="cards4">
+      <div class="card rv" style="--i:2"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><h3>She asks</h3><p>"Remind me to pay my premium", in the chat, in her language.</p></div>
+      <div class="card rv" style="--i:3"><div class="ico pine"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></div><h3>She confirms the date</h3><p>Offered from her policy if it shows one, otherwise she types it. Nothing is assumed.</p></div>
+      <div class="card rv" style="--i:4"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div><h3>She agrees</h3><p>Her email and the dates go to n8n only with her yes. No policy details, no phone number.</p></div>
+      <div class="card rv" style="--i:5"><div class="ico amber"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div><h3>She is reminded</h3><p>7 days and 1 day before. "Stop reminders" cancels it at once.</p></div>
+    </div>
+    <div class="banner rv" style="--i:7"><span>The email says the premium <b style="color:#8fe0c4">may be</b> due. Praman cannot see payments.</span><span class="badge pine" style="font-size:24px">never "overdue", never "paid"</span></div>
+  </div>
+</section>
+
 <!-- 13 CONSOLE -->
 <section class="slide" id="s13" data-title="The distributor console">
   <div class="eyebrow rv">The distributor's view</div>
-  <h2 class="rv" style="--i:1">Its own benefit, <em>counted from events.</em></h2>
+  <h2 class="rv" style="--i:1">Cases and complaints, <em>in one console.</em></h2>
   <div class="body" style="margin-top:26px;align-items:flex-start">
     <div class="con">
       <div class="rv left" style="--i:2">
-        <div class="head"><div class="lab">HEADLINE · EXAMPLE CASES</div><div class="h">Of <b id="c13a">0</b> cases, <b id="c13b">0</b> needed the distributor.</div><span class="badge" style="font-size:18px">counted from the example cases</span></div>
+        <div class="head"><div class="lab">COMPLAINTS · EXAMPLE CASE</div><div class="h"><b id="c13a">0</b> waiting for a person.</div><span class="badge" style="font-size:18px">registered when the chat could not settle it</span></div>
         <div class="counters" style="margin-top:22px">
-          <div class="ctr"><b>11</b>counters, each from event rows</div>
-          <div class="ctr"><b>0</b>invented numbers, projected savings or cost figures</div>
+          <div class="ctr"><b>2</b>tabs: Cases and Complaints</div>
+          <div class="ctr"><b>0</b>sent to the insurer</div>
         </div>
       </div>
       <div class="cases">
         <div class="case rv right" style="--i:3"><div><b>Admission</b><small>health · coverage question</small></div><div>Insurer: Example General Insurance <small>file with a known deduction</small></div><span class="badge pine">routed away</span></div>
         <div class="case rv right" style="--i:4"><div><b>Non-disclosure</b><small>health · claim denied</small></div><div>Insurer: Example General Insurance <small>moratorium ground · draft ready</small></div><span class="badge pine">routed away</span></div>
         <div class="case rv right" style="--i:5"><div><b>Double debit</b><small>platform · payment failed</small></div><div>Distributor <small>support ticket</small></div><span class="badge">needs distributor</span></div>
-        <div class="counters rv right" style="--i:6;grid-template-columns:repeat(3,1fr)">
-          <div class="ctr">readiness checks run</div><div class="ctr">claims stopped, and why</div><div class="ctr">deductions explained</div>
-          <div class="ctr">coverage queries drafted</div><div class="ctr">insurer queries caught</div><div class="ctr">answers confirmed solved</div>
-        </div>
-        <p class="note rv" style="--i:7">"What would this save?" Multiply the count by your own cost per ticket. We do not invent that number.</p>
+        <div class="case rv right" style="--i:6"><div><b>Complaint C-12</b><small>health · claim denied</small></div><div>"My claim was rejected after six years." <small>Reach her on +91******3210 · policy ending 6789</small></div><span class="badge red">pending</span></div>
       </div>
     </div>
   </div>
@@ -718,7 +757,7 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
       <div class="tc rv" style="--i:5"><div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div><h3>"Delete everything" works</h3><p>Case, documents, letters and events, including from the console.</p>
         <div class="del" id="del15"><div><span>demo-admission</span><span>✓</span></div><div><span>documents, letters</span><span>✓</span></div><div><span>events</span><span>✓</span></div></div></div>
       <div class="tc rv" style="--i:6"><div class="ico amber"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></div><h3>Verified or badged</h3><p>Every legal value carries <b>verified_by</b>. Until a named person checks it, it shows <span class="badge" style="font-size:16px">Not yet verified</span></p></div>
-      <div class="tc rv" style="--i:7"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l18-7-7 18-2-8z"/></svg></div><h3>Nothing is filed</h3><p>Praman drafts. The customer approves. The screen says <b>"Approved and ready to send"</b>, and a test keeps it honest.</p></div>
+      <div class="tc rv" style="--i:7"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 11l18-7-7 18-2-8z"/></svg></div><h3>Nothing is filed</h3><p>Praman drafts. The customer approves. The screen says <b>"Approved and ready to send"</b> until n8n reports it went out, and a test keeps it honest.</p></div>
     </div>
   </div>
 </section>
@@ -729,14 +768,14 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
   <h2 class="rv" style="--i:1">Built, tested, <em>and honest about the rest.</em></h2>
   <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0;margin-top:20px">
     <div class="stats">
-      <div class="stat rv" style="--i:2"><b data-count="978">0</b><span>backend tests, all passing, none touching the network</span></div>
+      <div class="stat rv" style="--i:2"><b data-count="1161">0</b><span>backend tests, all passing, none touching the network</span></div>
       <div class="stat rv" style="--i:3"><b data-count="7">0</b><span>claim rules, each with blocked, clear and missing-fact tests</span></div>
       <div class="stat rv" style="--i:4"><b data-count="11">0</b><span>languages across the site, voice in and out</span></div>
       <div class="stat rv" style="--i:5"><b data-count="3">0</b><span>verdicts: file, do not file yet, file with a known deduction</span></div>
     </div>
     <div class="nx">
-      <div class="built rv left" style="--i:6"><h3>Built</h3><ul><li>Readiness engine, router, checklist, drafts</li><li>Coverage Q&amp;A with citations and a live, labelled news layer</li><li>Voice in and out, 11 languages</li><li>Consent, redaction, delete, distributor console</li></ul></div>
-      <div class="next rv right" style="--i:7"><h3>Next, not claimed</h3><ul><li>Lending "fair offer" ruleset: same engine, one YAML</li><li>Motor ruleset, and claim deadline reminders</li><li>Hand-checking every <b>UNVERIFIED</b> value against its source</li></ul></div>
+      <div class="built rv left" style="--i:6"><h3>Built</h3><ul><li>Readiness engine, router, checklist, drafts</li><li>Three start options, including find a policy for parents</li><li>Letters delivered and followed up through n8n, with consent</li><li>Premium reminders by email, only when asked</li><li>Coverage Q&amp;A with citations, voice, 11 languages, a complaints console</li></ul></div>
+      <div class="next rv right" style="--i:7"><h3>Next, not claimed</h3><ul><li>Lending "fair offer" ruleset: same engine, one YAML</li><li>Motor ruleset and claim-deadline rules</li><li>Real insurer delivery addresses: today's adapters are examples</li><li>Hand-checking every <b>UNVERIFIED</b> value against its source</li></ul></div>
     </div>
   </div>
 </section>
@@ -747,7 +786,7 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
   <h2 class="rv" style="--i:1">Stop the rejection <em>before it happens.</em></h2>
   <p class="sub rv" style="--i:2">And send every question to the party that owes the answer.</p>
   <div class="stamp2 rv" style="--i:4"><span class="badge pine" style="font-size:24px">Team HackOverFlow</span><span class="badge pine" style="font-size:24px">Rithvik Shetty</span><span class="badge pine" style="font-size:24px">Vinay Pokharkar</span></div>
-  <div class="footer-credit"><span>Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with or endorsed by Paytm.</span><span>Prototype. Example data. Nothing is filed or sent.</span></div>
+  <div class="footer-credit"><span>Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with or endorsed by Paytm.</span><span>Prototype. Example data. Nothing is filed; a letter goes out only after approval and consent.</span></div>
 </section>
 
 <div id="bar"></div>
@@ -875,8 +914,8 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
       later(function(){btn.classList.remove('press');btn.classList.add('done');btn.textContent='Approved and ready to send';ok.textContent='Nothing is sent from here.'},5900);
     },
     s13:function(){
-      var a=$('#c13a'),b=$('#c13b');a.textContent='0';b.textContent='0';
-      later(function(){countTo(a,3,900);later(function(){countTo(b,1,700)},700)},1500);
+      var a=$('#c13a');a.textContent='0';
+      later(function(){countTo(a,1,700)},1500);
     },
     s14:function(){
       var pills=$$('#s14 .pill');
