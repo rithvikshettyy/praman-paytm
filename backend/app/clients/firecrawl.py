@@ -25,18 +25,21 @@ def _readable(markdown: str) -> str:
     return _LINK.sub(r"\1", _IMAGE.sub("", markdown)).strip()[:MAX_PAGE_CHARS]
 
 
-def _allowed(url: str, domains: tuple[str, ...]) -> bool:
+def allowed(url: str, domains: tuple[str, ...]) -> bool:
+    """Whether the url's host is one of `domains` or under one; any host when `domains` is empty."""
     host = (urlparse(url).hostname or "").lower()
     return not domains or any(host == d or host.endswith("." + d) for d in domains)
 
 
-def search(query: str, limit: int = 5, domains: tuple[str, ...] = ()) -> list[dict]:
+def search(query: str, limit: int = 5, domains: tuple[str, ...] = (), scrape: bool = True) -> list[dict]:
     """[{title, url, markdown}] for the query, only from `domains` when given; [] when there is
-    no key or the call fails."""
+    no key or the call fails. With scrape=False no page is fetched: "markdown" holds the result's
+    description (cheaper, for checking that a page exists)."""
     if not config.FIRECRAWL_API_KEY:
         return []
-    body = {"query": redact(query), "limit": limit, "country": "IN",
-            "scrapeOptions": {"formats": ["markdown"], "onlyMainContent": True}}
+    body = {"query": redact(query), "limit": limit, "country": "IN"}
+    if scrape:
+        body["scrapeOptions"] = {"formats": ["markdown"], "onlyMainContent": True}
     if domains:
         body["includeDomains"] = list(domains)
     try:
@@ -49,8 +52,8 @@ def search(query: str, limit: int = 5, domains: tuple[str, ...] = ()) -> list[di
         return []
     pages = []
     for item in found:
-        url, text = item.get("url"), item.get("markdown") or ""
-        if isinstance(url, str) and url.startswith("https://") and _allowed(url, domains) and text.strip():
+        url, text = item.get("url"), (item.get("markdown") if scrape else item.get("description")) or ""
+        if isinstance(url, str) and url.startswith("https://") and allowed(url, domains) and text.strip():
             pages.append({"title": str(item.get("title") or ""), "url": url, "markdown": _readable(text)})
     return pages
 

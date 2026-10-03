@@ -26,3 +26,30 @@ kinds:
     - /two-wheeler-insurance/companies/bajaj-allianz/
     - /two-wheeler-insurance/companies/shriram/
     - /two-wheeler-insurance/companies/acko/
+# The insurer's own site, searched to confirm a plan exists (keyword in the insurer or plan name -> domain).
+# A wrong or missing domain only means the plan is shown without the "insurer's site lists it" mark.
+insurers:
+  care: careinsurance.com
+  star health: starhealth.in
+  niva bupa: nivabupa.com
+  hdfc ergo: hdfcergo.com
+  icici lombard: icicilombard.com
+  bajaj allianz: bajajallianz.com
+  bajaj general: bajajallianz.com
+  raheja qbe: rahejaqbe.com
+  manipalcigna: manipalcigna.com
+  manipal cigna: manipalcigna.com
+  lic: licindia.in
+  tata aia: tataaia.com
+  tata aig: tataaig.com
+  max life: axismaxlife.com
+  hdfc life: hdfclife.com
+  icici prudential: iciciprulife.com
+  indiafirst: indiafirstlife.com
+  liberty: libertyinsurance.in
+  national insurance: nationalinsurance.nic.co.in
+  shriram: shriramgi.com
+  acko: acko.com
+  new india: newindia.co.in
+  iffco tokio: iffcotokio.co.in
+  sbi general: sbigeneral.in
