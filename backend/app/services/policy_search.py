@@ -11,6 +11,7 @@ import re
 import time
 from urllib.parse import urlparse
 
+from app import config
 from app.clients import firecrawl, sarvam
 from app.services import i18n, safety
 from app.services.redact import redact
@@ -71,11 +72,12 @@ def suggest(kind: str, requirements: str | None = None, language: str = "en-IN")
     if not label:
         return None
     needs = redact(requirements or "").strip()[:500]
-    key = hashlib.sha256(f"{kind}|{language}|{needs}".encode()).hexdigest()
+    key = hashlib.sha256(f"{kind}|{language}|{needs}|{config.POLICY_SEARCH_DOMAINS}".encode()).hexdigest()
     hit = _CACHE.get(key)
     if hit and time.time() - hit[0] < _TTL:
         return hit[1]
-    pages = firecrawl.search(f"{label} India {needs} policy features sum insured premium waiting period".strip())
+    pages = firecrawl.search(f"{label} India {needs} policy features sum insured premium waiting period".strip(),
+                             domains=config.POLICY_SEARCH_DOMAINS)
     if not pages:
         return None  # not cached: a failed call should be tried again
     by_url = {p["url"]: p["markdown"] for p in pages}

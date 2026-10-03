@@ -21,7 +21,7 @@ def fresh(monkeypatch):
 def serve(monkeypatch, options, pages=None):
     sent = []
     pages = [{"title": "t", "url": PAGE, "markdown": TEXT}] if pages is None else pages
-    monkeypatch.setattr(firecrawl, "search", lambda q, limit=5: sent.append(q) or pages)
+    monkeypatch.setattr(firecrawl, "search", lambda q, limit=5, domains=(): sent.append(q) or pages)
     monkeypatch.setattr(sarvam, "chat_json", lambda *a, **k: {"options": options})
     return sent
 
@@ -103,3 +103,27 @@ def test_firecrawl_keeps_only_https_pages_with_text_and_masks_the_query(monkeypa
     monkeypatch.setattr(firecrawl.httpx, "post", post)
     pages = firecrawl.search("PAN ABCDE1234F policy")
     assert [p["url"] for p in pages] == ["https://a.example/x"] and "ABCDE1234F" not in seen["query"]
+
+
+def test_the_search_is_limited_to_the_configured_sites(monkeypatch):
+    monkeypatch.setattr(config, "POLICY_SEARCH_DOMAINS", ("insure.example",))
+    seen = {}
+    monkeypatch.setattr(firecrawl, "search", lambda q, limit=5, domains=(): seen.update(domains=domains) or [])
+    policy_search.suggest("health")
+    assert seen["domains"] == ("insure.example",)
+
+
+def test_firecrawl_drops_pages_from_other_sites_and_sends_the_allowlist(monkeypatch):
+    monkeypatch.setattr(config, "FIRECRAWL_API_KEY", "k")
+    sent = {}
+
+    class Resp:
+        def raise_for_status(self): pass
+        def json(self): return {"data": {"web": [
+            {"url": "https://www.insure.example/a", "markdown": "x"}, {"url": "https://sub.insure.example/b", "markdown": "x"},
+            {"url": "https://other.example/c", "markdown": "x"}, {"url": "https://notinsure.example/d", "markdown": "x"}]}}
+
+    monkeypatch.setattr(firecrawl.httpx, "post", lambda url, json, timeout, headers: sent.update(json) or Resp())
+    pages = firecrawl.search("q", domains=("insure.example",))
+    assert [p["url"] for p in pages] == ["https://www.insure.example/a", "https://sub.insure.example/b"]
+    assert sent["includeDomains"] == ["insure.example"]
