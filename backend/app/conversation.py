@@ -641,6 +641,7 @@ def _respond(
     checklist: cases.Checklist | None = None,
     explain_documents: bool = False,
     journey: str | None = None,
+    guided: bool = False,
 ) -> Reply:
     """Handle one message from ``user`` (a channel-scoped id such as whatsapp:+91… or web:<session>)."""
     checklist = checklist or cases.load_checklist()
@@ -658,6 +659,9 @@ def _respond(
         with _AWAITING_LOCK:
             _AWAITING_CONSENT.pop(user, None)
         _REMINDER_FLOW.pop(user, None)
+        from app import guided as guided_flows
+
+        guided_flows.forget(user)
         return Reply(None, reply_language, (Message(DELETED),))
 
     case = store.case_for_user(conn, user)
@@ -692,6 +696,14 @@ def _respond(
         if turn:
             return Reply(case_id, reply_language, turn)
 
+    # The web chat's guided journeys (find a policy, complaint): its own questions come before the usual answer.
+    if guided and text and not photos and journey in ("find", "complain"):
+        from app import guided as guided_flows
+
+        turn = guided_flows.turn(conn, user, case, journey, text, reply_language)
+        if turn:
+            return Reply(case_id, reply_language, turn)
+
     messages: list[Message] = []
     pending = store.pending_document(conn, case_id, cases.CLAIM_DOC)
     number = _number(text) if text and not photos else None
@@ -717,6 +729,10 @@ def _respond(
     elif text and pending is None:
         answered = _text_reply(conn, case, text, reply_language, context, journey)
         if answered:
+            if guided and journey == "complain":  # the answer did not have to settle it: offer a person
+                from app import guided as guided_flows
+
+                answered = tuple(answered) + guided_flows.complaint_hint()
             return Reply(case_id, reply_language, answered)
 
     state = cases.checklist_state(conn, case_id, checklist)

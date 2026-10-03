@@ -17,7 +17,7 @@ from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Header, Request,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app import cases, config, console, conversation, handoff, readiness, store
+from app import cases, complaints, config, console, conversation, guided, handoff, readiness, store
 from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
 from app.core import ladder_engine as le
@@ -233,6 +233,33 @@ def set_case_status(case_id: str, body: dict = Body(...)):
     return {"case_id": case_id, "status": status}
 
 
+@app.get("/api/console/complaints")
+def console_complaints(status: str = "pending"):
+    """Complaints she asked a person to take on. status=pending (default) | resolved | all."""
+    conn = store.connect()
+    try:
+        return {"complaints": complaints.listing(conn, None if status == "all" else status)}
+    except ValueError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    finally:
+        conn.close()
+
+
+@app.post("/api/console/complaints/{complaint_id}/status")
+def set_complaint_status(complaint_id: int, body: dict = Body(...)):
+    """An agent marks a complaint resolved (it leaves the pending list) or pending (it comes back)."""
+    status = body.get("status")
+    if status not in complaints.STATUSES:
+        return _bad(f"status must be one of {list(complaints.STATUSES)}.")
+    conn = store.connect()
+    try:
+        if not complaints.set_status(conn, complaint_id, status):
+            return _bad("No such complaint.", 404)
+    finally:
+        conn.close()
+    return {"id": complaint_id, "status": status}
+
+
 @app.get("/api/metrics")
 def console_metrics():
     """Headline and six counters, every one counted from event rows."""
@@ -318,8 +345,40 @@ def _chat_reply(reply: conversation.Reply, speak: bool) -> dict:
             "audio_url": voice.speak(text, reply.language) if speak else None,
             # "Did this solve it?": the id to answer with, and which question to ask
             "feedback": {"answer_id": message.feedback[0], "kind": message.feedback[1]} if message.feedback else None,
+            # quick replies under the message: tapping one sends its id as her next message
+            "buttons": [{"id": b[0], "title": conversation.render(conversation.Message(b[1]), reply.language)} for b in message.buttons],
         })
     return {"case_id": reply.case_id, "language": reply.language, "messages": messages}
+
+
+def _web_journey(conn, user: str) -> str | None:
+    """The start option she picked in the web chat, if any (the latest ``journey_chosen`` on her case)."""
+    case = store.find_case_for_user(conn, user)
+    found = store.latest_event(conn, case["id"], "journey_chosen") if case else None
+    return found["detail"].get("journey") if found else None
+
+
+@app.post("/api/journey")
+def choose_journey(body: dict = Body(...)):
+    """The start options of the web chat: {session_id, journey: find | check | complain, language?}.
+    Remembers the pick for her case and returns the opening message (and, for find, the first question)."""
+    user = _web_user(body.get("session_id"))
+    journey = body.get("journey")
+    if user is None:
+        return _bad("session_id must be 8 to 64 letters, digits or hyphens.")
+    if journey not in guided.JOURNEYS:
+        return _bad(f"journey must be one of {list(guided.JOURNEYS)}.")
+    language = body.get("language") if body.get("language") in config.SUPPORTED_LANGUAGES else None
+    conn = store.connect()
+    try:
+        case = store.case_for_user(conn, user)
+        if language:
+            store.set_language(conn, case["id"], language)
+        messages = guided.open_journey(conn, user, case, journey)
+        reply = conversation.Reply(case["id"], language or case.get("language") or config.DEFAULT_LANGUAGE, messages)
+    finally:
+        conn.close()
+    return _chat_reply(reply, speak=False)
 
 
 def _converse(session_id, text: str, language, insurer, product, speak: bool):
@@ -330,7 +389,7 @@ def _converse(session_id, text: str, language, insurer, product, speak: bool):
     try:
         reply = conversation.respond(
             conn, user, text, language=language, context={"insurer": insurer, "product": product},
-            explain_documents=True,
+            explain_documents=True, journey=_web_journey(conn, user), guided=True,
         )
     finally:
         conn.close()
@@ -350,6 +409,10 @@ def feedback(body: dict = Body(...)):
     conn = store.connect()
     try:
         reply, recorded = conversation.give_feedback(conn, user, answer_id, solved, body.get("language"))
+        if not recorded and _web_journey(conn, user) == "complain":
+            # In the complaint journey a "No" means a person should take it: start registering the complaint.
+            case = store.find_case_for_user(conn, user)
+            reply = conversation.Reply(reply.case_id, reply.language, guided.escalate(conn, user, case))
     except conversation.UnknownAnswer:
         return _bad("That answer is not one you were given.", 404)
     finally:
@@ -459,6 +522,7 @@ def chat_upload(
         reply = conversation.respond(
             conn, user, text, attachments=tuple(attachments), language=language,
             context={"insurer": insurer, "product": product}, explain_documents=True,
+            journey=_web_journey(conn, user), guided=True,
         )
     finally:
         conn.close()

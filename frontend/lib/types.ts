@@ -16,6 +16,25 @@ export interface ChatMessage {
   audio_url: string | null;
   /** Ask "Did this solve it?" under this message: answer (Yes / No) or not_found (get a person). */
   feedback: { answer_id: number; kind: "answer" | "not_found" } | null;
+  /** Quick replies under the message: tapping one sends its id as her next message. */
+  buttons?: { id: string; title: string }[];
+}
+
+export type Journey = "find" | "check" | "complain";
+
+/** A complaint she asked a person to take on, as the console lists it. */
+export interface ConsoleComplaint {
+  id: number;
+  case_id: string;
+  status: "pending" | "resolved";
+  registered_at: string;
+  text: string;
+  contact: string | null;
+  policy_last4: string | null;
+  product: string | null;
+  grievance_class: string | null;
+  respondent_name: string | null;
+  example: boolean;
 }
 
 export interface HandoffBrief {
@@ -241,6 +260,8 @@ export interface Metrics {
     answers_given: number;
     answers_confirmed_solved: number;
     asked_for_a_person: number;
+    complaints_registered: number;
+    complaints_pending: number;
     cases_marked_resolved: number;
   };
 }

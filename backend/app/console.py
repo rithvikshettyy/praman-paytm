@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app import config, store
+from app import complaints, config, store
 from app.store import Store
 
 # A case needed the distributor when the answer is the distributor's own, or when she asked for a
@@ -133,6 +133,8 @@ def metrics(conn: Store) -> dict[str, Any]:
             "cases_marked_resolved": sum(row["agent_status"] == "resolved" for row in rows),
             # cases where she asked for a person after an answer
             "asked_for_a_person": cases_with("agent_requested"),
+            # complaints she asked a person to take on, and how many still wait (the Complaints tab)
+            **complaints.counts(conn),
             # letters the delivery workflow confirmed it sent, and response windows that ended with no reply
             "letters_sent": count("letter_delivered"),
             "follow_ups_triggered": sum(e["detail"].get("action") != "stop" for e in _events(conn, "clock_due")),

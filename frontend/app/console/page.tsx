@@ -7,7 +7,7 @@ import { HandoffBrief } from "@/components/HandoffBrief";
 import { api, errorText } from "@/lib/api";
 import { ErrorNote, ExampleBadge, Loading } from "@/components/Status";
 import { OUTCOME_LABEL, PRODUCT_LABEL, humanise, longDate } from "@/lib/format";
-import type { ConsoleCase, Metrics } from "@/lib/types";
+import type { ConsoleCase, ConsoleComplaint, Metrics } from "@/lib/types";
 import { useApi } from "@/lib/useApi";
 
 const REFRESH_MS = 5000;
@@ -16,6 +16,13 @@ export default function ConsolePage() {
   const [filter, setFilter] = useState<"" | "needs_paytm" | "routed_away" | "resolved">("");
   const [statusError, setStatusError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null); // the case whose brief is showing
+  const [view, setView] = useState<"cases" | "complaints">("cases");
+  const [complaintStatus, setComplaintStatus] = useState<"pending" | "resolved" | "all">("pending");
+  const [openComplaint, setOpenComplaint] = useState<number | null>(null); // the complaint whose brief is showing
+  const complaints = useApi<{ complaints: ConsoleComplaint[] }>(
+    `/api/console/complaints?status=${complaintStatus}`,
+    REFRESH_MS,
+  );
   const metrics = useApi<Metrics>("/api/metrics", REFRESH_MS);
   const list = useApi<{ cases: ConsoleCase[] }>(`/api/console/cases${filter ? `?filter=${filter}` : ""}`, REFRESH_MS);
   const distributor = metrics.data?.headline.distributor ?? "the distributor";
@@ -27,6 +34,17 @@ export default function ConsolePage() {
       await api(`/api/console/cases/${caseId}/status`, { method: "POST", json: { status } });
       if (status === "resolved" && open === caseId) setOpen(null);
       list.reload();
+      metrics.reload();
+    } catch (err) {
+      setStatusError(errorText(err));
+    }
+  }
+  // An agent marks a complaint Resolved (it leaves the pending list) or Pending (it comes back).
+  async function markComplaint(id: number, status: "pending" | "resolved") {
+    setStatusError(null);
+    try {
+      await api(`/api/console/complaints/${id}/status`, { method: "POST", json: { status } });
+      complaints.reload();
       metrics.reload();
     } catch (err) {
       setStatusError(errorText(err));
@@ -47,6 +65,8 @@ export default function ConsolePage() {
         { label: "Answers given in the chat", value: c.answers_given },
         { label: "Answers she confirmed solved her question", value: c.answers_confirmed_solved },
         { label: "Cases where she asked for a person", value: c.asked_for_a_person },
+        { label: "Complaints registered", value: c.complaints_registered },
+        { label: "Complaints waiting for a person", value: c.complaints_pending },
         { label: "Cases an agent marked resolved", value: c.cases_marked_resolved },
       ]
     : [];
@@ -98,6 +118,121 @@ export default function ConsolePage() {
         </section>
       )}
 
+      <div role="tablist" aria-label="Console" className="flex gap-1 border-b border-line">
+        {[
+          { value: "cases", label: "Cases" },
+          { value: "complaints", label: `Complaints${c ? ` (${c.complaints_pending} pending)` : ""}` },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            role="tab"
+            aria-selected={view === tab.value}
+            type="button"
+            onClick={() => setView(tab.value as typeof view)}
+            className={`-mb-px border-b-2 px-4 py-2 font-medium ${
+              view === tab.value ? "border-pine text-pine-dark" : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view === "complaints" && (
+        <section aria-label="Complaints" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Complaints</h2>
+              <p className="text-sm text-muted">
+                Registered when the chat could not settle it, or she asked to talk to someone. Nothing has been sent to the
+                insurer. Her contact shows here only.
+              </p>
+            </div>
+            <div role="tablist" aria-label="Filter complaints" className="flex gap-1 rounded-md border border-line bg-white p-1 text-sm">
+              {[
+                { value: "pending", label: "Pending" },
+                { value: "resolved", label: "Resolved" },
+                { value: "all", label: "All" },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  role="tab"
+                  aria-selected={complaintStatus === tab.value}
+                  type="button"
+                  onClick={() => setComplaintStatus(tab.value as typeof complaintStatus)}
+                  className={`rounded px-3 py-1.5 ${complaintStatus === tab.value ? "bg-pine text-white" : "text-muted hover:text-ink"}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {statusError && <ErrorNote message={statusError} />}
+          {complaints.error && <ErrorNote message={complaints.error} />}
+          {complaints.loading && !complaints.data && <Loading label="Loading complaints" />}
+          {complaints.data && complaints.data.complaints.length === 0 && (
+            <p className="text-muted">{complaintStatus === "resolved" ? "No resolved complaints." : "No complaints here yet."}</p>
+          )}
+          {complaints.data && complaints.data.complaints.length > 0 && (
+            <ul className="divide-y divide-line rounded-lg border border-line bg-white">
+              {complaints.data.complaints.map((item) => (
+                <li key={item.id}>
+                  <div className="grid gap-2 px-4 py-3 sm:grid-cols-[1.6fr_1fr_auto] sm:items-start sm:gap-4">
+                    <div>
+                      <p className="font-medium">
+                        C-{item.id}
+                        {item.respondent_name ? `, ${item.respondent_name}` : ""}
+                        {item.example && <span className="ml-2 align-middle"><ExampleBadge /></span>}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-sm">{item.text || "No description given."}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {item.product ? PRODUCT_LABEL[item.product] ?? item.product : "Product unknown"}
+                        {item.grievance_class ? `, ${humanise(item.grievance_class).toLowerCase()}` : ""}
+                        {item.policy_last4 ? `, policy ending ${item.policy_last4}` : ""}
+                      </p>
+                    </div>
+                    <div className="text-sm">
+                      <p>
+                        <span className="text-muted">Reach her on: </span>
+                        <span className="font-medium">{item.contact ?? "No contact given"}</span>
+                      </p>
+                      <p className="text-muted">Registered {longDate(item.registered_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 justify-self-start sm:justify-self-end">
+                      <label className="sr-only" htmlFor={`complaint-${item.id}`}>
+                        Status of this complaint
+                      </label>
+                      <select
+                        id={`complaint-${item.id}`}
+                        value={item.status}
+                        onChange={(event) => void markComplaint(item.id, event.target.value as "pending" | "resolved")}
+                        className={`rounded-md border px-2 py-1.5 text-sm font-medium ${
+                          item.status === "resolved" ? "border-pine/40 bg-pine-wash text-pine-dark" : "border-line bg-white text-ink"
+                        }`}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="resolved">Resolved</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setOpenComplaint(openComplaint === item.id ? null : item.id)}
+                        aria-expanded={openComplaint === item.id}
+                        className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium hover:border-pine hover:text-pine"
+                      >
+                        {openComplaint === item.id ? "Hide brief" : "View brief"}
+                      </button>
+                    </div>
+                  </div>
+                  {openComplaint === item.id && <HandoffBrief caseId={item.case_id} />}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {view === "cases" && (
       <section aria-label="Cases" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold">Cases</h2>
@@ -192,6 +327,7 @@ export default function ConsolePage() {
           </ul>
         )}
       </section>
+      )}
     </div>
   );
 }

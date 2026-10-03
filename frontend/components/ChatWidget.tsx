@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { UnverifiedBadge } from "@/components/Status";
 import { api, errorText, mediaUrl } from "@/lib/api";
 import { LANGUAGES, useSession } from "@/lib/session";
-import type { ChatMessage, ChatReply } from "@/lib/types";
+import type { ChatMessage, ChatReply, Journey } from "@/lib/types";
 
 interface Item {
   id: number;
@@ -20,7 +20,19 @@ interface Item {
   files?: string[]; // documents she sent with this message
   feedback?: ChatMessage["feedback"]; // ask "Did this solve it?" under this message
   rated?: boolean; // she has answered it
+  buttons?: { id: string; title: string }[]; // quick replies; shown only under the newest message
 }
+
+// The start options of the chat. Each one tells the backend which conversation to have.
+const START_OPTIONS: { journey: Journey; title: string; hint: string }[] = [
+  { journey: "find", title: "Find a policy", hint: "Answer a few questions and see options, for you or for your parents." },
+  { journey: "check", title: "Check my policy", hint: "Send your policy and ask me anything about it." },
+  {
+    journey: "complain",
+    title: "Complaint",
+    hint: "Something went wrong? Tell me. If I cannot settle it, I will register it for our team.",
+  },
+];
 
 let nextId = 1;
 
@@ -78,6 +90,7 @@ export function ChatWidget() {
   const [transcribing, setTranscribing] = useState(false);
   const [heard, setHeard] = useState(false); // the box holds words from a recording, not yet sent
   const [attached, setAttached] = useState<File[]>([]); // picked, waiting to go with her message
+  const [showMenu, setShowMenu] = useState(true); // the three start options are on screen
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const listEnd = useRef<HTMLDivElement | null>(null);
@@ -113,6 +126,7 @@ export function ChatWidget() {
     setHeard(false);
     setBusy(false);
     setTranscribing(false);
+    setShowMenu(true);
     clearChatContext();
     closeChat();
   }
@@ -143,9 +157,13 @@ export function ChatWidget() {
       citations: m.citations,
       audioUrl: m.audio_url,
       feedback: m.feedback,
+      buttons: m.buttons,
     }));
     setItems((current) => [...current, ...answers]);
-    if (reply.case_id === null) renewCase(); // she deleted everything: the next message starts a new case
+    if (reply.case_id === null) {
+      renewCase(); // she deleted everything: the next message starts a new case
+      setShowMenu(true);
+    }
     const firstAudio = answers.find((a) => a.audioUrl)?.audioUrl;
     if (autoplay && firstAudio) play(firstAudio);
   }
@@ -175,10 +193,37 @@ export function ChatWidget() {
     if (!sessionId || busy) return;
     if (attached.length) return sendWithFiles(attached, message);
     if (!message) return;
+    await sendMessage(message);
+  }
+
+  // A start option: the backend remembers the pick and opens the conversation (for Find a policy, its first question).
+  async function startJourney(option: (typeof START_OPTIONS)[number]) {
+    if (!sessionId || busy) return;
     const mine = round.current;
-    setItems((current) => [...current, { id: nextId++, from: "you", text: message }]);
+    setItems((current) => [...current, { id: nextId++, from: "you", text: option.title }]);
+    setShowMenu(false);
+    setBusy(true);
+    setError(null);
+    try {
+      const reply = await api<ChatReply>("/api/journey", {
+        method: "POST",
+        json: { session_id: sessionId, journey: option.journey, language },
+      });
+      if (mine === round.current) showReply(reply, false);
+    } catch (err) {
+      if (mine === round.current) setError(errorText(err));
+    } finally {
+      if (mine === round.current) setBusy(false);
+    }
+  }
+
+  // "shown" is what her bubble says when she tapped a quick reply: the button's title, not its id.
+  async function sendMessage(message: string, shown?: string) {
+    const mine = round.current;
+    setItems((current) => [...current, { id: nextId++, from: "you", text: shown ?? message }]);
     setText("");
     setHeard(false);
+    setShowMenu(false);
     setBusy(true);
     setError(null);
     try {
@@ -369,9 +414,8 @@ export function ChatWidget() {
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4" aria-live="polite">
         {items.length === 0 && (
           <p className="text-[15px] text-muted">
-            Send any insurance policy (health, bike, car, life, travel or home) with the paperclip and ask anything
-            about it, say what went wrong with a claim, or ask what documents are still missing. You can also speak:
-            press the microphone.
+            Choose what you want to do, or just type. You can send any insurance policy (health, bike, car, life, travel
+            or home) with the paperclip, and you can also speak: press the microphone.
           </p>
         )}
         {items.map((item) => (
@@ -414,6 +458,20 @@ export function ChatWidget() {
                 </div>
               )}
             </div>
+            {item.buttons && item.buttons.length > 0 && item.id === items[items.length - 1]?.id && !busy && (
+              <div className="flex max-w-[95%] flex-wrap gap-2 text-sm" role="group" aria-label="Quick replies">
+                {item.buttons.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => void sendMessage(b.id, b.title)}
+                    className="rounded-full border border-pine/40 bg-white px-3 py-1.5 font-medium text-pine-dark hover:bg-pine hover:text-white"
+                  >
+                    {b.title}
+                  </button>
+                ))}
+              </div>
+            )}
             {item.feedback && !item.rated && (
               <div className="flex max-w-[85%] flex-wrap items-center gap-2 text-sm">
                 <span className="text-muted">
@@ -439,6 +497,27 @@ export function ChatWidget() {
             )}
           </div>
         ))}
+        {showMenu && (
+          <div className="grid gap-2" role="group" aria-label="What would you like to do?">
+            {START_OPTIONS.map((option) => (
+              <button
+                key={option.journey}
+                type="button"
+                onClick={() => void startJourney(option)}
+                disabled={busy || !sessionId}
+                className="rounded-lg border border-line bg-white p-3 text-left hover:border-pine disabled:opacity-50"
+              >
+                <span className="block font-semibold text-ink">{option.title}</span>
+                <span className="block text-sm text-muted">{option.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {!showMenu && items.length > 0 && !busy && (
+          <button type="button" onClick={() => setShowMenu(true)} className="text-sm text-muted underline hover:text-ink">
+            Change what I am doing
+          </button>
+        )}
         {busy && <p className="text-sm text-muted">Praman is replying…</p>}
         {transcribing && <p className="text-sm text-muted">Writing down what you said…</p>}
         {error && (

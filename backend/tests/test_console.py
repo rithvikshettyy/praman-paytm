@@ -88,6 +88,8 @@ def test_the_counters(seeded):
         "answers_given": 0,
         "answers_confirmed_solved": 0,
         "asked_for_a_person": 0,
+        "complaints_registered": 0,
+        "complaints_pending": 0,
         "cases_marked_resolved": 0,
     }
 
