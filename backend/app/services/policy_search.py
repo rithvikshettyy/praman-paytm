@@ -65,16 +65,42 @@ def _clean(options, pages: dict[str, str]) -> list[dict]:
     return kept[:_MAX_OPTIONS]
 
 
-def _render(options: list[dict], label: str, language: str) -> str:
-    """In her language, but policy, insurer and site names stay as written: only the sentences are translated."""
-    lines = []
+def _pages_file() -> dict:
+    return yaml.safe_load(Path(config.POLICY_PAGES_FILE).read_text(encoding="utf-8")) or {}
+
+
+def site_link(insurer: str | None, kind: str | None = None) -> str | None:
+    """The distributor's own page for this insurer, from backend/data/policy_pages.yaml: only a page listed
+    there, matched by the words of its last path part (all must be in the insurer's name). None when no site
+    is set in POLICY_SEARCH_DOMAINS, or nothing matches. The link is never made up."""
+    if not config.POLICY_SEARCH_DOMAINS or not insurer:
+        return None
+    words = set(re.findall(r"[a-z0-9]+", insurer.lower()))
+    listed = _pages_file()
+    for path in (listed.get("kinds", {}).get(kind) or []) + (listed.get("links") or []):
+        slug = path.rstrip("/").rsplit("/", 1)[-1]
+        if "/companies/" in path and set(slug.split("-")) <= words:
+            return f"https://{config.POLICY_SEARCH_DOMAINS[0]}{path}"
+    return None
+
+
+def _render(options: list[dict], label: str, language: str, kind: str | None = None) -> str:
+    """In her language, but policy, insurer and site names stay as written: only the sentences are translated.
+    One block per option, a blank line between them, with a link to the distributor's page when there is one."""
+    link_label = i18n.translate("Compare and buy:", language)
+    blocks = []
     for i, o in enumerate(options, 1):
         who = f" ({o['insurer']})" if o["insurer"] else ""
         features = i18n.translate(o["features"], language) if o["features"] else ""
-        lines.append(f"{i}. {o['policy']}{who}" + (f": {features}" if features else "") + f" [{_site(o['url'])}]")
+        block = f"{i}. {o['policy']}{who}" + (f": {features}" if features else "") + f" [{_site(o['url'])}]"
+        own = config.POLICY_SEARCH_DOMAINS and _site(o["url"]) == config.POLICY_SEARCH_DOMAINS[0]
+        link = o["url"] if own else site_link(o["insurer"], kind)
+        if link:
+            block += f"\n{link_label} {link}"
+        blocks.append(block)
     head = i18n.translate(f"Options found online for {label}, in no order:", language)
-    body = "\n".join(lines)
-    return f"{head}\n{body}\n\n{i18n.translate(CHECK, language)}\n\n{i18n.translate(ASK_NEEDS, language)}"
+    body = "\n\n".join(blocks)
+    return f"{head}\n\n{body}\n\n{i18n.translate(CHECK, language)}\n\n{i18n.translate(ASK_NEEDS, language)}"
 
 
 def _insurer_pages(kind: str) -> list[dict]:
@@ -85,7 +111,7 @@ def _insurer_pages(kind: str) -> list[dict]:
         return hit[1]
     if not config.POLICY_SEARCH_DOMAINS:
         return []
-    paths = (yaml.safe_load(Path(config.POLICY_PAGES_FILE).read_text(encoding="utf-8")) or {}).get("kinds", {}).get(kind) or []
+    paths = _pages_file().get("kinds", {}).get(kind) or []
     urls = [f"https://{config.POLICY_SEARCH_DOMAINS[0]}{p}" for p in random.sample(paths, min(_TRY, len(paths)))]
     with ThreadPoolExecutor(_WORKERS) as pool:
         pages = [p for p in pool.map(firecrawl.scrape, urls) if p][:_KEEP]
@@ -117,7 +143,7 @@ def suggest(kind: str, requirements: str | None = None, language: str = "en-IN")
     except Exception:  # Sarvam down or refused: the old answer stands
         return None
     options = _clean((reply or {}).get("options") if isinstance(reply, dict) else None, by_url)
-    text = _render(options, label, language) if options else None
+    text = _render(options, label, language, kind) if options else None
     if text:
         _CACHE[key] = (time.time(), text)  # a miss is not cached: try again next time
     return text

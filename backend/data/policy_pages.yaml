@@ -26,3 +26,14 @@ kinds:
     - /two-wheeler-insurance/companies/bajaj-allianz/
     - /two-wheeler-insurance/companies/shriram/
     - /two-wheeler-insurance/companies/acko/
+
+# Insurer pages on the same site that are only linked to, never read: a "buy or compare" link under an
+# option whose insurer is named here. A page is matched by the words of its last path part, all of which
+# must appear in the insurer's name ("sbi-general" matches "SBI General Insurance"). Each loaded on 2026-10-03;
+# not checked against any insurer.
+links:
+  - /general-insurance/companies/digit/
+  - /general-insurance/companies/sbi-general/
+  - /general-insurance/companies/hdfc-ergo/
+  - /general-insurance/companies/bajaj-allianz/
+  - /general-insurance/companies/tata-aig/

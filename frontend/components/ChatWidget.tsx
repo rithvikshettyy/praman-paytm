@@ -36,6 +36,21 @@ const START_OPTIONS: { journey: Journey; title: string; hint: string }[] = [
 
 let nextId = 1;
 
+// Links in a reply (a policy page to compare and buy on) open in a new tab.
+const URL_PATTERN = /(https?:\/\/[^\s]+[^\s.,;:!?)])/g;
+
+function linkify(text: string) {
+  return text.split(URL_PATTERN).map((part, index) =>
+    index % 2 === 1 ? (
+      <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-pine underline">
+        {part}
+      </a>
+    ) : (
+      part
+    ),
+  );
+}
+
 // Line icons drawn in currentColor, so they stay sharp at any size and follow the button's colour.
 function PaperclipIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -86,6 +101,7 @@ export function ChatWidget() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [speak, setSpeak] = useState(true);
+  const speakRef = useRef(true); // read when a reply arrives: a reply that was on its way when she turned voice off stays silent
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [heard, setHeard] = useState(false); // the box holds words from a recording, not yet sent
@@ -165,7 +181,7 @@ export function ChatWidget() {
       setShowMenu(true);
     }
     const firstAudio = answers.find((a) => a.audioUrl)?.audioUrl;
-    if (autoplay && firstAudio) play(firstAudio);
+    if (autoplay && speakRef.current && firstAudio) play(firstAudio);
   }
 
   // "Did this solve it?": a Yes is counted for the distributor; a No asks for a person, who gets a brief.
@@ -390,7 +406,12 @@ export function ChatWidget() {
         </select>
         <button
           type="button"
-          onClick={() => setSpeak((s) => !s)}
+          onClick={() => {
+            // Turning voice off silences what is playing now, not only the replies after it.
+            if (speak) stopVoice();
+            speakRef.current = !speak;
+            setSpeak(!speak);
+          }}
           aria-pressed={speak}
           title={speak ? "Voice replies on" : "Voice replies off"}
           className={`rounded-md border px-2 py-1 text-sm ${speak ? "border-pine bg-pine-wash text-pine-dark" : "border-line text-muted"}`}
@@ -432,7 +453,7 @@ export function ChatWidget() {
                   <span className="break-all">{name}</span>
                 </p>
               ))}
-              {item.text && <p className="whitespace-pre-wrap">{item.text}</p>}
+              {item.text && <p className="whitespace-pre-wrap">{linkify(item.text)}</p>}
               {(item.unverified || item.audioUrl || (item.citations && item.citations.length > 0)) && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {item.unverified && <UnverifiedBadge />}
