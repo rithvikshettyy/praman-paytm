@@ -21,7 +21,7 @@ EXTRACTION = Extraction(
 
 @pytest.fixture
 def conn(tmp_path):
-    connection = store.connect(tmp_path / "praman.db")
+    connection = store.connect()
     yield connection
     connection.close()
 
@@ -75,51 +75,54 @@ def test_stored_confidence_is_the_weakest_field_that_was_read(conn, tmp_path):
     assert store.get_document(conn, row["id"])["confidence"] == 0.9
 
 
-def test_c7_tables_exist(conn):
-    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert {"documents", "consents"} <= tables
-    columns = {r[1] for r in conn.execute("PRAGMA table_info(documents)")}
-    assert {"id", "case_id", "doc_type", "slot", "received_at", "fields", "confidence", "retained"} <= columns
+def test_c7_collections_hold_what_a_row_used_to(conn):
+    row = store.save_document(conn, "case-1", EXTRACTION, slot="bill")
+    assert {"id", "case_id", "doc_type", "slot", "received_at", "fields", "confidence", "retained"} <= set(row)
+    assert isinstance(row["fields"], dict)  # a real sub-document, not a JSON string
 
 
-def test_many_connections_at_once_do_not_trip_over_the_console_view(tmp_path):
-    """The console fetches counters and cases together; their connections must not race."""
+def test_ids_count_up_and_are_never_reused(conn):
+    first = store.record_event(conn, "case-1", "readiness_checked", {"outcome": "file"})
+    second = store.record_event(conn, "case-1", "readiness_checked", {"outcome": "file"})
+    assert second == first + 1
+    conn.db.events.delete_many({})
+    assert store.record_event(conn, "case-1", "readiness_checked", {}) == second + 1
+
+
+def test_many_connections_at_once_open_one_case_per_sender():
     from concurrent.futures import ThreadPoolExecutor
 
-    path = tmp_path / "praman.db"
-    store.connect(path).close()
-
-    def open_and_read(_):
-        conn = store.connect(path)
+    def open_and_find(_):
+        conn = store.connect()
         try:
-            return conn.execute("SELECT COUNT(*) FROM console_cases").fetchone()[0]
+            return store.case_for_user(conn, "whatsapp:+910000000001")["id"]
         finally:
             conn.close()
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        assert list(pool.map(open_and_read, range(64))) == [0] * 64
+        assert len(set(pool.map(open_and_find, range(64)))) == 1
 
 
-def test_the_console_view_is_left_alone_when_it_is_current(tmp_path):
-    """Opening the store must not drop the view out from under another request's query."""
-    path = tmp_path / "praman.db"
-    store.connect(path).close()
-    conn = store.connect(path)
-    conn.set_trace_callback(lambda sql: statements.append(sql))
-    statements = []
-    store.connect(path).close()
-    assert not any("DROP VIEW" in sql for sql in statements)
-    conn.close()
+def test_the_console_rows_read_the_latest_event_of_each_kind(conn):
+    store.ensure_case(conn, "c1")
+    store.record_event(conn, "c1", "case_routed", {"respondent": "insurer", "distributor_owned": False})
+    store.record_event(conn, "c1", "case_routed", {"respondent": "distributor", "distributor_owned": True})
+    store.record_event(conn, "c1", "agent_requested", {"reason": "not_solved"})
+    [row] = store.console_rows(conn)
+    assert row["respondent"] == "distributor" and row["distributor_owned"] is True
+    assert row["agent_requested"] is True and row["agent_status"] == "pending"
+    store.record_event(conn, "c1", "case_status", {"status": "resolved"})
+    assert store.console_rows(conn)[0]["agent_status"] == "resolved"
 
 
-def test_an_out_of_date_console_view_is_rebuilt(tmp_path):
-    path = tmp_path / "praman.db"
-    first = store.connect(path)
-    first.executescript("DROP VIEW console_cases; CREATE VIEW console_cases AS SELECT 1 AS case_id;")
-    first.close()
-    conn = store.connect(path)
-    try:
-        assert conn.execute("SELECT COUNT(*) FROM console_cases").fetchone()[0] == 0
-        assert "agent_status" in [row["name"] for row in conn.execute("PRAGMA table_info(console_cases)")]
-    finally:
-        conn.close()
+def test_the_transcript_is_masked_and_goes_with_the_case(conn):
+    store.ensure_case(conn, "c1")
+    store.record_message(conn, "c1", "user", "my PAN is ABCDE1234F", "en-IN", ("image/png",))
+    [turn] = store.case_messages(conn, "c1")
+    assert "ABCDE1234F" not in turn["text"] and turn["attachments"] == ["image/png"]
+    store.save_pages(conn, "c1", "policy.pdf", "health_policy", [(1, "Aadhaar 1234 5678 9012 sum insured 5,00,000")])
+    [doc] = store.case_pages(conn, "c1")
+    assert "1234 5678 9012" not in doc["pages"][0][1] and "5,00,000" in doc["pages"][0][1]
+    deleted = store.delete_case(conn, "c1")
+    assert deleted["messages"] == 1 and deleted["doc_pages"] == 1
+    assert store.case_messages(conn, "c1") == [] and store.case_pages(conn, "c1") == []

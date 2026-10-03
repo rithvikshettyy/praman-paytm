@@ -1,10 +1,15 @@
-"""SQLite store (PRD-PAYTM C7): cases, documents and consents so far.
+"""MongoDB store (PRD-PAYTM C7): cases, documents, consents, events, drafts, the chat transcript
+and the text of documents she sent.
 
 Retention default: we keep the fields read from a document, not the document.
 The original is written to disk only when the case has an unrevoked
 ``keep_original`` consent; otherwise it is never stored. The documents in
 scope are medical bills and loan agreements, so this is a product decision,
-not a nicety.
+not a nicety. The chat transcript and the document text are stored masked
+(``redact``), and the document text only after the consent that lets her papers be read.
+
+Callers keep one function per question (``get_case``, ``record_event``, ...) and get plain
+dicts back; none of them sees MongoDB. ``connect()`` returns a ``Store`` holding the database.
 """
 
 from __future__ import annotations
@@ -12,15 +17,19 @@ from __future__ import annotations
 import json
 import re
 import shutil
-import sqlite3
 import threading
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
+
 from app import config
 from app.services.documents import Extraction
+from app.services.redact import redact
 
 CONSENT_SCOPES = (
     "read_documents",  # read any document she sends (OCR and extraction); asked before the first one
@@ -31,62 +40,6 @@ CONSENT_SCOPES = (
     "contact_insurer",
     "keep_original",  # keep the uploaded file itself, not just the fields read from it
 )
-
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS cases (
-    id                TEXT PRIMARY KEY,
-    channel_user      TEXT UNIQUE,      -- e.g. whatsapp:+91...; NULL for cases opened over the API
-    language          TEXT,             -- e.g. mr-IN; NULL until known
-    product           TEXT,             -- health_policy | merchant_loan | motor_policy
-    respondent        TEXT,             -- insurer | lender | distributor
-    respondent_name   TEXT,             -- e.g. the insurer's legal name
-    distributor_owned INTEGER,          -- 1 = the distributor owes the answer
-    created_at        TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS documents (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    case_id     TEXT NOT NULL,
-    doc_type    TEXT NOT NULL,      -- policy | bill | kfs | letter | claim_doc
-    slot        TEXT,               -- discharge_summary | bill | id_proof | ...
-    received_at TEXT NOT NULL,
-    fields      TEXT NOT NULL DEFAULT '{}',
-    confidence  REAL,
-    retained    INTEGER NOT NULL DEFAULT 0   -- 0 = fields kept, original discarded
-);
-
-CREATE TABLE IF NOT EXISTS consents (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    case_id    TEXT NOT NULL,
-    scope      TEXT NOT NULL,       -- see CONSENT_SCOPES
-    granted    INTEGER NOT NULL,
-    at         TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS drafts (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    case_id     TEXT NOT NULL,
-    kind        TEXT NOT NULL,       -- coverage_query | escalation
-    addressee   TEXT NOT NULL,
-    text        TEXT NOT NULL,
-    unverified  INTEGER NOT NULL DEFAULT 0,
-    status      TEXT NOT NULL DEFAULT 'drafted',   -- drafted | approved (approved and ready to send; nothing is sent)
-    created_at  TEXT NOT NULL,
-    approved_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS events (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    case_id    TEXT NOT NULL,
-    kind       TEXT NOT NULL,       -- see EVENT_KINDS
-    detail     TEXT NOT NULL DEFAULT '{}',
-    at         TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS documents_case_idx ON documents (case_id);
-CREATE INDEX IF NOT EXISTS consents_case_scope_idx ON consents (case_id, scope);
-CREATE INDEX IF NOT EXISTS events_case_kind_idx ON events (case_id, kind);
-"""
 
 # The audit trail. Every number on the Distributor Console (N8) is counted
 # from these rows; nothing is projected or estimated.
@@ -109,172 +62,159 @@ EVENT_KINDS = (
 )
 CASE_STATUSES = ("pending", "resolved")
 
-# One row per case for the console: its latest route, verdict and clock, each
-# read from the latest event of that kind (never from columns an event did
-# not write).
-CONSOLE_VIEW = """
-DROP VIEW IF EXISTS console_cases;
-CREATE VIEW console_cases AS
-WITH latest AS (
-    SELECT case_id, kind, MAX(id) AS id FROM events GROUP BY case_id, kind
-)
-SELECT
-    c.id                                            AS case_id,
-    c.created_at                                    AS created_at,
-    COALESCE(c.is_example, 0)                       AS is_example,
-    json_extract(r.detail, '$.product')             AS product,
-    json_extract(r.detail, '$.grievance_class')     AS grievance_class,
-    json_extract(r.detail, '$.respondent')          AS respondent,
-    json_extract(r.detail, '$.respondent_name')     AS respondent_name,
-    json_extract(r.detail, '$.distributor_owned')   AS distributor_owned,
-    json_extract(v.detail, '$.outcome')             AS verdict,
-    json_extract(k.detail, '$.step')                AS clock_step,
-    json_extract(k.detail, '$.respond_by')          AS clock_respond_by,
-    json_extract(k.detail, '$.verified_by')         AS clock_verified_by,
-    (SELECT MAX(at) FROM events e WHERE e.case_id = c.id) AS last_event_at,
-    EXISTS (SELECT 1 FROM documents d WHERE d.case_id = c.id) AS has_documents,
-    EXISTS (SELECT 1 FROM events a WHERE a.case_id = c.id AND a.kind = 'agent_requested') AS agent_requested,
-    COALESCE(json_extract(s.detail, '$.status'), 'pending') AS agent_status
-FROM cases c
-LEFT JOIN latest lr ON lr.case_id = c.id AND lr.kind = 'case_routed'
-LEFT JOIN events r  ON r.id = lr.id
-LEFT JOIN latest lv ON lv.case_id = c.id AND lv.kind = 'readiness_checked'
-LEFT JOIN events v  ON v.id = lv.id
-LEFT JOIN latest lk ON lk.case_id = c.id AND lk.kind = 'clock_started'
-LEFT JOIN events k  ON k.id = lk.id
-LEFT JOIN latest ls ON ls.case_id = c.id AND ls.kind = 'case_status'
-LEFT JOIN events s  ON s.id = ls.id;
-"""
+# Every collection that belongs to one case, deleted with it.
+CASE_COLLECTIONS = ("documents", "consents", "events", "drafts", "messages", "doc_pages")
+
+# What a case looked like as a row, so callers still get every key.
+_CASE_DEFAULTS = {
+    "channel_user": None, "language": None, "product": None, "respondent": None,
+    "respondent_name": None, "distributor_owned": None, "is_example": None,
+}
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# Columns added to tables after they first shipped (PRD-PAYTM C7). A store
-# created before a column existed gets it on the next connect.
-MIGRATIONS = {
-    "cases": (
-        ("product", "TEXT"),
-        ("respondent", "TEXT"),
-        ("respondent_name", "TEXT"),
-        ("distributor_owned", "INTEGER"),
-        ("is_example", "INTEGER"),  # 1 = seeded example case for the demo
-    ),
-}
+def _plain(value: Any) -> Any:
+    """What a JSON round trip keeps: dates and the like become text."""
+    return json.loads(json.dumps(value, default=str))
 
 
-# Two requests setting up the schema at once (the console fetches its counters and its case list
-# together) failed with "view already exists", and a request reading while another dropped the view
-# failed with "no such table: console_cases". So the view is only rebuilt when its definition has
-# changed, and then as one atomic step, so a reader sees the old view or the new one, never none.
+# --- Connection --------------------------------------------------------------
+
 _SETUP_LOCK = threading.Lock()
-_VIEW_SQL = "CREATE VIEW " + CONSOLE_VIEW.split("CREATE VIEW", 1)[1].strip().rstrip(";").strip()
+_client: MongoClient | None = None  # one pooled client per process; tests put a fake here
+_indexed: set[tuple[int, str]] = set()
 
 
-def _view_is_current(conn: sqlite3.Connection) -> bool:
-    row = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'console_cases'").fetchone()
-    return row is not None and " ".join(row["sql"].split()) == " ".join(_VIEW_SQL.split())
+@dataclass
+class Store:
+    """An open store. ``close`` does nothing: the client is pooled for the process."""
+
+    db: Any
+
+    def close(self) -> None:
+        pass
 
 
-def connect(path: Path | str | None = None) -> sqlite3.Connection:
-    """Open the store, creating the file and tables if needed and migrating older ones."""
-    path = Path(path or config.STORE_PATH)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+def _get_client() -> MongoClient:
+    global _client
     with _SETUP_LOCK:
-        conn.executescript(SCHEMA)
-        _migrate(conn)
-        if not _view_is_current(conn):
-            conn.executescript(f"BEGIN IMMEDIATE;{CONSOLE_VIEW}COMMIT;")
-    return conn
+        if _client is None:
+            _client = MongoClient(config.MONGO_URI, serverSelectionTimeoutMS=5000, tz_aware=True)
+        return _client
 
 
-def _migrate(conn: sqlite3.Connection) -> None:
-    for table, columns in MIGRATIONS.items():
-        present = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
-        for name, kind in columns:
-            if name not in present:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
-    conn.commit()
+def _ensure_indexes(db) -> None:
+    key = (id(_get_client()), db.name)
+    with _SETUP_LOCK:
+        if key in _indexed:
+            return
+        db.cases.create_index("channel_user", unique=True, sparse=True)  # absent, not null, for API cases
+        db.events.create_index([("case_id", ASCENDING), ("kind", ASCENDING)])
+        db.events.create_index("id", unique=True)
+        db.documents.create_index("case_id")
+        db.documents.create_index("id", unique=True)
+        db.drafts.create_index("case_id")
+        db.drafts.create_index("id", unique=True)
+        db.consents.create_index([("case_id", ASCENDING), ("scope", ASCENDING)])
+        db.messages.create_index([("case_id", ASCENDING), ("id", ASCENDING)])
+        db.doc_pages.create_index("case_id")
+        _indexed.add(key)
+
+
+def connect(db_name: str | None = None) -> Store:
+    """Open the store, creating the indexes on first use in this process."""
+    db = _get_client()[db_name or config.MONGO_DB]
+    _ensure_indexes(db)
+    return Store(db)
+
+
+def _next_id(conn: Store, name: str) -> int:
+    """The next integer id for a collection: ids show up in URLs and in "Did this solve it?" taps."""
+    row = conn.db.counters.find_one_and_update(
+        {"_id": name}, {"$inc": {"n": 1}}, upsert=True, return_document=ReturnDocument.AFTER
+    )
+    return row["n"]
+
+
+def _row(doc: dict | None) -> dict[str, Any] | None:
+    return None if doc is None else {k: v for k, v in doc.items() if k != "_id"}
 
 
 # --- Cases -------------------------------------------------------------------
 
 
-def get_case(conn: sqlite3.Connection, case_id: str) -> dict[str, Any] | None:
-    row = conn.execute("SELECT * FROM cases WHERE id = ?", (case_id,)).fetchone()
-    return dict(row) if row else None
+def _case_out(doc: dict | None) -> dict[str, Any] | None:
+    if doc is None:
+        return None
+    return {**_CASE_DEFAULTS, **_row(doc), "id": doc["_id"]}
 
 
-def ensure_case(conn: sqlite3.Connection, case_id: str) -> dict[str, Any]:
+def get_case(conn: Store, case_id: str) -> dict[str, Any] | None:
+    return _case_out(conn.db.cases.find_one({"_id": case_id}))
+
+
+def ensure_case(conn: Store, case_id: str) -> dict[str, Any]:
     """The case with this id, opening it if it does not exist yet."""
-    conn.execute("INSERT OR IGNORE INTO cases (id, created_at) VALUES (?, ?)", (case_id, _now()))
-    conn.commit()
+    conn.db.cases.update_one({"_id": case_id}, {"$setOnInsert": {"created_at": _now()}}, upsert=True)
     return get_case(conn, case_id)
 
 
-def find_case_for_user(conn: sqlite3.Connection, channel_user: str) -> dict[str, Any] | None:
-    row = conn.execute("SELECT * FROM cases WHERE channel_user = ?", (channel_user,)).fetchone()
-    return dict(row) if row else None
+def find_case_for_user(conn: Store, channel_user: str) -> dict[str, Any] | None:
+    return _case_out(conn.db.cases.find_one({"channel_user": channel_user}))
 
 
-def delete_case(conn: sqlite3.Connection, case_id: str, originals_dir: Path | None = None) -> dict[str, int] | None:
-    """Delete everything held for a case: documents, kept originals, consents, events, the case.
+def delete_case(conn: Store, case_id: str, originals_dir: Path | None = None) -> dict[str, int] | None:
+    """Delete everything held for a case: documents, kept originals, consents, events, drafts, the
+    chat transcript, the document text, the case.
 
-    Returns how many rows went from each table, or None if there was no such
+    Returns how many rows went from each collection, or None if there was no such
     case. Events go too, so the case disappears from every console number.
     """
     if get_case(conn, case_id) is None:
         return None
-    deleted = {
-        table: conn.execute(f"DELETE FROM {table} WHERE case_id = ?", (case_id,)).rowcount
-        for table in ("documents", "consents", "events", "drafts")
-    }
-    conn.execute("DELETE FROM cases WHERE id = ?", (case_id,))
-    conn.commit()
+    deleted = {name: conn.db[name].delete_many({"case_id": case_id}).deleted_count for name in CASE_COLLECTIONS}
+    conn.db.cases.delete_one({"_id": case_id})
     shutil.rmtree(Path(originals_dir or config.ORIGINALS_DIR) / _safe_name(case_id), ignore_errors=True)
     return deleted
 
 
-def wipe_all(conn: sqlite3.Connection, originals_dir: Path | None = None) -> int:
+def wipe_all(conn: Store, originals_dir: Path | None = None) -> int:
     """Delete every case and every row that belongs to one, and every kept original.
     For resetting a demo store only. Returns how many cases there were."""
-    count = conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0]
-    for table in ("documents", "consents", "events", "drafts", "cases"):
-        conn.execute(f"DELETE FROM {table}")
-    conn.commit()
+    count = conn.db.cases.count_documents({})
+    for name in (*CASE_COLLECTIONS, "cases"):
+        conn.db[name].delete_many({})
     shutil.rmtree(Path(originals_dir or config.ORIGINALS_DIR), ignore_errors=True)
     return count
 
 
-def case_for_user(conn: sqlite3.Connection, channel_user: str) -> dict[str, Any]:
+def case_for_user(conn: Store, channel_user: str) -> dict[str, Any]:
     """The case for a messaging user (one open case per sender), opening it on first contact."""
-    row = conn.execute("SELECT * FROM cases WHERE channel_user = ?", (channel_user,)).fetchone()
-    if row:
-        return dict(row)
+    found = find_case_for_user(conn, channel_user)
+    if found:
+        return found
     case_id = uuid.uuid4().hex
-    conn.execute(
-        "INSERT INTO cases (id, channel_user, created_at) VALUES (?, ?, ?)", (case_id, channel_user, _now())
-    )
-    conn.commit()
+    try:
+        conn.db.cases.insert_one({"_id": case_id, "channel_user": channel_user, "created_at": _now()})
+    except DuplicateKeyError:  # two first messages at once: the other one won
+        return find_case_for_user(conn, channel_user)
     return get_case(conn, case_id)
 
 
-def set_language(conn: sqlite3.Connection, case_id: str, language: str) -> None:
-    conn.execute("UPDATE cases SET language = ? WHERE id = ?", (language, case_id))
-    conn.commit()
+def set_language(conn: Store, case_id: str, language: str | None) -> None:
+    conn.db.cases.update_one({"_id": case_id}, {"$set": {"language": language}})
 
 
-def set_example(conn: sqlite3.Connection, case_id: str) -> None:
+def set_example(conn: Store, case_id: str) -> None:
     """Label a case as a seeded example, so every screen can say so."""
-    conn.execute("UPDATE cases SET is_example = 1 WHERE id = ?", (case_id,))
-    conn.commit()
+    conn.db.cases.update_one({"_id": case_id}, {"$set": {"is_example": 1}})
 
 
 def set_route(
-    conn: sqlite3.Connection,
+    conn: Store,
     case_id: str,
     product: str | None,
     respondent: str | None,
@@ -282,74 +222,105 @@ def set_route(
     distributor_owned: bool | None,
 ) -> None:
     """Record who owes this case an answer. All None clears a previous route."""
-    conn.execute(
-        "UPDATE cases SET product = ?, respondent = ?, respondent_name = ?, distributor_owned = ? WHERE id = ?",
-        (product, respondent, respondent_name, None if distributor_owned is None else int(distributor_owned), case_id),
+    conn.db.cases.update_one(
+        {"_id": case_id},
+        {"$set": {
+            "product": product, "respondent": respondent, "respondent_name": respondent_name,
+            "distributor_owned": None if distributor_owned is None else int(distributor_owned),
+        }},
     )
-    conn.commit()
 
 
 # --- Events ------------------------------------------------------------------
 
 
-def record_event(
-    conn: sqlite3.Connection, case_id: str, kind: str, detail: dict | None = None, at: str | None = None
-) -> int:
+def record_event(conn: Store, case_id: str, kind: str, detail: dict | None = None, at: str | None = None) -> int:
     if kind not in EVENT_KINDS:
         raise ValueError(f"unknown event kind {kind!r}")
-    cursor = conn.execute(
-        "INSERT INTO events (case_id, kind, detail, at) VALUES (?, ?, ?, ?)",
-        (case_id, kind, json.dumps(detail or {}, default=str), at or _now()),
+    event_id = _next_id(conn, "events")
+    conn.db.events.insert_one(
+        {"id": event_id, "case_id": case_id, "kind": kind, "detail": _plain(detail or {}), "at": at or _now()}
     )
-    conn.commit()
-    return cursor.lastrowid
+    return event_id
 
 
-def case_events(conn: sqlite3.Connection, case_id: str, kind: str, limit: int | None = None) -> list[dict[str, Any]]:
+def case_events(conn: Store, case_id: str, kind: str, limit: int | None = None) -> list[dict[str, Any]]:
     """A case's events of one kind, oldest first; with ``limit``, the latest few (still oldest first)."""
-    rows = conn.execute(
-        "SELECT * FROM events WHERE case_id = ? AND kind = ? ORDER BY id DESC" + (" LIMIT ?" if limit else ""),
-        (case_id, kind, limit) if limit else (case_id, kind),
-    ).fetchall()
-    out = []
-    for row in reversed(rows):
-        item = dict(row)
-        item["detail"] = json.loads(item["detail"])
-        out.append(item)
-    return out
+    cursor = conn.db.events.find({"case_id": case_id, "kind": kind}).sort("id", DESCENDING)
+    if limit:
+        cursor = cursor.limit(limit)
+    return [_row(doc) for doc in reversed(list(cursor))]
 
 
-def latest_event(conn: sqlite3.Connection, case_id: str, kind: str) -> dict[str, Any] | None:
-    row = conn.execute(
-        "SELECT * FROM events WHERE case_id = ? AND kind = ? ORDER BY id DESC LIMIT 1", (case_id, kind)
-    ).fetchone()
-    if row is None:
-        return None
-    out = dict(row)
-    out["detail"] = json.loads(out["detail"])
-    return out
+def latest_event(conn: Store, case_id: str, kind: str) -> dict[str, Any] | None:
+    return _row(conn.db.events.find_one({"case_id": case_id, "kind": kind}, sort=[("id", DESCENDING)]))
+
+
+def get_event(conn: Store, case_id: str, event_id: int, kind: str) -> dict[str, Any] | None:
+    """One event of a case by its id, or None if it is not this case's, or not this kind."""
+    return _row(conn.db.events.find_one({"id": event_id, "case_id": case_id, "kind": kind}))
+
+
+# The console's one row per case: its latest route, verdict and clock, each read from the latest
+# event of that kind (never from a value an event did not write).
+_LATEST_KINDS = ("case_routed", "readiness_checked", "clock_started", "case_status")
+
+
+def console_rows(conn: Store) -> list[dict[str, Any]]:
+    # ponytail: one pass over every event, fine at demo scale; an aggregation pipeline if cases pile up
+    latest: dict[str, dict[str, dict]] = {}
+    last_at: dict[str, str] = {}
+    asked: set[str] = set()
+    for event in conn.db.events.find({}).sort("id", ASCENDING):
+        case = event["case_id"]
+        if event["kind"] in _LATEST_KINDS:
+            latest.setdefault(case, {})[event["kind"]] = event["detail"]
+        elif event["kind"] == "agent_requested":
+            asked.add(case)
+        last_at[case] = max(last_at.get(case, ""), event["at"])
+    with_documents = set(conn.db.documents.distinct("case_id"))
+    rows = []
+    for case in conn.db.cases.find({}):
+        found = latest.get(case["_id"], {})
+        route, verdict = found.get("case_routed", {}), found.get("readiness_checked", {})
+        clock, status = found.get("clock_started", {}), found.get("case_status", {})
+        rows.append({
+            "case_id": case["_id"],
+            "created_at": case["created_at"],
+            "is_example": case.get("is_example") or 0,
+            "product": route.get("product"),
+            "grievance_class": route.get("grievance_class"),
+            "respondent": route.get("respondent"),
+            "respondent_name": route.get("respondent_name"),
+            "distributor_owned": route.get("distributor_owned"),
+            "verdict": verdict.get("outcome"),
+            "clock_step": clock.get("step"),
+            "clock_respond_by": clock.get("respond_by"),
+            "clock_verified_by": clock.get("verified_by"),
+            "last_event_at": last_at.get(case["_id"]),
+            "has_documents": case["_id"] in with_documents,
+            "agent_requested": case["_id"] in asked,
+            "agent_status": status.get("status") or "pending",
+        })
+    return rows
 
 
 # --- Consents ----------------------------------------------------------------
 
 
-def record_consent(conn: sqlite3.Connection, case_id: str, scope: str, granted: bool, at: str | None = None) -> None:
+def record_consent(conn: Store, case_id: str, scope: str, granted: bool, at: str | None = None) -> None:
     """Append a grant or revocation. The latest row for a scope wins."""
     if scope not in CONSENT_SCOPES:
         raise ValueError(f"unknown consent scope {scope!r}")
-    conn.execute(
-        "INSERT INTO consents (case_id, scope, granted, at) VALUES (?, ?, ?, ?)",
-        (case_id, scope, int(bool(granted)), at or _now()),
-    )
-    conn.commit()
+    conn.db.consents.insert_one({
+        "id": _next_id(conn, "consents"), "case_id": case_id, "scope": scope,
+        "granted": int(bool(granted)), "at": at or _now(),
+    })
 
 
-def has_consent(conn: sqlite3.Connection, case_id: str, scope: str) -> bool:
+def has_consent(conn: Store, case_id: str, scope: str) -> bool:
     """True only if the latest row for this scope is a grant. No row means no."""
-    row = conn.execute(
-        "SELECT granted FROM consents WHERE case_id = ? AND scope = ? ORDER BY id DESC LIMIT 1",
-        (case_id, scope),
-    ).fetchone()
+    row = conn.db.consents.find_one({"case_id": case_id, "scope": scope}, sort=[("id", DESCENDING)])
     return bool(row and row["granted"])
 
 
@@ -361,7 +332,7 @@ def _safe_name(name: str) -> str:
 
 
 def save_document(
-    conn: sqlite3.Connection,
+    conn: Store,
     case_id: str,
     extraction: Extraction,
     *,
@@ -380,103 +351,123 @@ def save_document(
     read = [f.confidence for f in extraction.fields.values() if f.value is not None]
     keep = original is not None and has_consent(conn, case_id, "keep_original")
 
-    cursor = conn.execute(
-        "INSERT INTO documents (case_id, doc_type, slot, received_at, fields, confidence, retained) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            case_id,
-            extraction.doc_type,
-            slot,
-            received_at or _now(),
-            json.dumps(fields, default=str),
-            min(read) if read else None,
-            int(keep),
-        ),
-    )
-    doc_id = cursor.lastrowid
+    doc_id = _next_id(conn, "documents")
+    conn.db.documents.insert_one({
+        "id": doc_id,
+        "case_id": case_id,
+        "doc_type": extraction.doc_type,
+        "slot": slot,
+        "received_at": received_at or _now(),
+        "fields": _plain(fields),
+        "confidence": min(read) if read else None,
+        "retained": int(keep),
+    })
     if keep:
         folder = Path(originals_dir or config.ORIGINALS_DIR) / _safe_name(case_id)
         folder.mkdir(parents=True, exist_ok=True)
         (folder / f"{doc_id}-{_safe_name(filename or 'document')}").write_bytes(original)
-    conn.commit()
     return get_document(conn, doc_id)
 
 
-def get_document(conn: sqlite3.Connection, doc_id: int) -> dict[str, Any] | None:
-    row = conn.execute("SELECT * FROM documents WHERE id = ?", (doc_id,)).fetchone()
-    if row is None:
-        return None
-    out = dict(row)
-    out["fields"] = json.loads(out["fields"])
-    return out
+def get_document(conn: Store, doc_id: int) -> dict[str, Any] | None:
+    return _row(conn.db.documents.find_one({"id": doc_id}))
 
 
-def case_documents(conn: sqlite3.Connection, case_id: str, doc_types: tuple[str, ...]) -> list[dict[str, Any]]:
+def case_documents(conn: Store, case_id: str, doc_types: tuple[str, ...]) -> list[dict[str, Any]]:
     """Documents of these types on the case, newest first, with fields decoded."""
-    marks = ",".join("?" for _ in doc_types)
-    rows = conn.execute(
-        f"SELECT id FROM documents WHERE case_id = ? AND doc_type IN ({marks}) ORDER BY id DESC",
-        (case_id, *doc_types),
-    ).fetchall()
-    return [get_document(conn, row["id"]) for row in rows]
+    found = conn.db.documents.find({"case_id": case_id, "doc_type": {"$in": list(doc_types)}}).sort("id", DESCENDING)
+    return [_row(doc) for doc in found]
 
 
-def filled_slots(conn: sqlite3.Connection, case_id: str) -> set[str]:
-    rows = conn.execute(
-        "SELECT DISTINCT slot FROM documents WHERE case_id = ? AND slot IS NOT NULL", (case_id,)
-    ).fetchall()
-    return {row["slot"] for row in rows}
+def document_types(conn: Store, case_id: str) -> set[str]:
+    """The kinds of document on a case, never their names or text."""
+    return set(conn.db.documents.distinct("doc_type", {"case_id": case_id}))
 
 
-def pending_document(conn: sqlite3.Connection, case_id: str, doc_type: str) -> int | None:
+def filled_slots(conn: Store, case_id: str) -> set[str]:
+    return {slot for slot in conn.db.documents.distinct("slot", {"case_id": case_id}) if slot is not None}
+
+
+def pending_document(conn: Store, case_id: str, doc_type: str) -> int | None:
     """The latest document of this type still waiting to be placed in a slot."""
-    row = conn.execute(
-        "SELECT id FROM documents WHERE case_id = ? AND doc_type = ? AND slot IS NULL ORDER BY id DESC LIMIT 1",
-        (case_id, doc_type),
-    ).fetchone()
+    row = conn.db.documents.find_one({"case_id": case_id, "doc_type": doc_type, "slot": None}, sort=[("id", DESCENDING)])
     return row["id"] if row else None
 
 
-def assign_slot(conn: sqlite3.Connection, case_id: str, doc_id: int, slot: str) -> bool:
+def assign_slot(conn: Store, case_id: str, doc_id: int, slot: str) -> bool:
     """Place a document in a slot. False if no such document belongs to this case."""
-    cursor = conn.execute(
-        "UPDATE documents SET slot = ? WHERE id = ? AND case_id = ?", (slot, doc_id, case_id)
-    )
-    conn.commit()
-    return cursor.rowcount == 1
+    return conn.db.documents.update_one({"id": doc_id, "case_id": case_id}, {"$set": {"slot": slot}}).matched_count == 1
+
+
+# --- Her words and her papers ------------------------------------------------
+
+
+def record_message(
+    conn: Store, case_id: str, role: str, text: str, language: str | None = None,
+    attachments: tuple[str, ...] = (), citations: tuple[dict, ...] = (),
+) -> None:
+    """One turn of the chat, masked. ``role`` is user or praman; ``attachments`` are content types,
+    never file names or bytes."""
+    conn.db.messages.insert_one({
+        "id": _next_id(conn, "messages"), "case_id": case_id, "role": role, "text": redact(text or ""),
+        "language": language, "attachments": list(attachments), "citations": _plain(list(citations)), "at": _now(),
+    })
+
+
+def case_messages(conn: Store, case_id: str) -> list[dict[str, Any]]:
+    return [_row(doc) for doc in conn.db.messages.find({"case_id": case_id}).sort("id", ASCENDING)]
+
+
+def save_pages(conn: Store, case_id: str, filename: str, product: str | None, pages: list[tuple[int, str]]) -> None:
+    """Keep the text of a document she sent, masked, so her questions still work after a restart.
+    Call only once she has consented to her documents being read. A file sent again replaces its earlier copy."""
+    conn.db.doc_pages.delete_many({"case_id": case_id, "filename": filename})
+    conn.db.doc_pages.insert_one({
+        "id": _next_id(conn, "doc_pages"), "case_id": case_id, "filename": filename, "product": product,
+        "pages": [{"page": int(page), "text": redact(text)} for page, text in pages if text and text.strip()],
+        "at": _now(),
+    })
+
+
+def case_pages(conn: Store, case_id: str) -> list[dict[str, Any]]:
+    """Her saved documents, oldest first: filename, product and (page, text) pairs."""
+    return [
+        {"filename": doc["filename"], "product": doc["product"], "pages": [(p["page"], p["text"]) for p in doc["pages"]]}
+        for doc in conn.db.doc_pages.find({"case_id": case_id}).sort("id", ASCENDING)
+    ]
 
 
 # --- Drafts ------------------------------------------------------------------
 
 
-def save_draft(conn: sqlite3.Connection, case_id: str, kind: str, addressee: str, text: str, unverified: bool) -> dict[str, Any]:
-    cursor = conn.execute(
-        "INSERT INTO drafts (case_id, kind, addressee, text, unverified, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (case_id, kind, addressee, text, int(unverified), _now()),
-    )
-    conn.commit()
-    return get_draft(conn, case_id, cursor.lastrowid)
+def save_draft(conn: Store, case_id: str, kind: str, addressee: str, text: str, unverified: bool) -> dict[str, Any]:
+    draft_id = _next_id(conn, "drafts")
+    conn.db.drafts.insert_one({
+        "id": draft_id, "case_id": case_id, "kind": kind, "addressee": addressee, "text": text,
+        "unverified": int(unverified), "status": "drafted", "created_at": _now(), "approved_at": None,
+    })
+    return get_draft(conn, case_id, draft_id)
 
 
-def get_draft(conn: sqlite3.Connection, case_id: str, draft_id: int) -> dict[str, Any] | None:
-    row = conn.execute("SELECT * FROM drafts WHERE id = ? AND case_id = ?", (draft_id, case_id)).fetchone()
-    if row is None:
-        return None
-    out = dict(row)
-    out["unverified"] = bool(out["unverified"])
+def get_draft(conn: Store, case_id: str, draft_id: int) -> dict[str, Any] | None:
+    out = _row(conn.db.drafts.find_one({"id": draft_id, "case_id": case_id}))
+    if out is not None:
+        out["unverified"] = bool(out["unverified"])
     return out
 
 
-def case_drafts(conn: sqlite3.Connection, case_id: str) -> list[dict[str, Any]]:
-    rows = conn.execute("SELECT id FROM drafts WHERE case_id = ? ORDER BY id DESC", (case_id,)).fetchall()
-    return [get_draft(conn, case_id, row["id"]) for row in rows]
+def case_drafts(conn: Store, case_id: str) -> list[dict[str, Any]]:
+    found = conn.db.drafts.find({"case_id": case_id}).sort("id", DESCENDING)
+    return [get_draft(conn, case_id, doc["id"]) for doc in found]
 
 
-def approve_draft(conn: sqlite3.Connection, case_id: str, draft_id: int) -> dict[str, Any] | None:
+def approve_draft(conn: Store, case_id: str, draft_id: int) -> dict[str, Any] | None:
     """Mark a draft approved and ready to send. Nothing is sent anywhere."""
-    cursor = conn.execute(
-        "UPDATE drafts SET status = 'approved', approved_at = COALESCE(approved_at, ?) WHERE id = ? AND case_id = ?",
-        (_now(), draft_id, case_id),
+    draft = get_draft(conn, case_id, draft_id)
+    if draft is None:
+        return None
+    conn.db.drafts.update_one(
+        {"id": draft_id, "case_id": case_id},
+        {"$set": {"status": "approved", "approved_at": draft["approved_at"] or _now()}},
     )
-    conn.commit()
-    return get_draft(conn, case_id, draft_id) if cursor.rowcount == 1 else None
+    return get_draft(conn, case_id, draft_id)

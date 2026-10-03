@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 
+import mongomock
 import pytest
 from pypdf import PdfWriter
 
@@ -16,6 +17,16 @@ def no_live_sarvam(monkeypatch):
     """A real key in backend/.env must never reach a test: any call a test forgot to fake fails here."""
     monkeypatch.setattr(config, "SARVAM_API_KEY", "")
     monkeypatch.setattr(sarvam, "_client", None)
+
+
+@pytest.fixture(autouse=True)
+def fresh_mongo(monkeypatch):
+    """Every test gets its own empty in-memory MongoDB; none touches a server."""
+    from app import store
+
+    monkeypatch.setattr(store, "_client", mongomock.MongoClient())
+    monkeypatch.setattr(store, "_indexed", set())
+
 
 POLICY_TEXT = """HEALTH INSURANCE POLICY SCHEDULE
 Policy Number: EX-000-0000 (example case, not a real policy)

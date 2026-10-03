@@ -15,7 +15,6 @@ DISCHARGE = "DISCHARGE SUMMARY\nDate of discharge: 08/10/2026"
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(documents, "read_text", lambda *a, **k: DISCHARGE)
     return tmp_path
@@ -84,13 +83,13 @@ def full_case(env):
 def test_delete_removes_the_case_everywhere(full_case):
     response = client.delete("/api/case/c1")
     assert response.status_code == 200
-    assert response.json()["deleted"] == {"documents": 1, "consents": 1, "events": 2, "drafts": 0}
+    assert response.json()["deleted"] == {"documents": 1, "consents": 1, "events": 2, "drafts": 0, "messages": 0, "doc_pages": 0}
 
     conn = connect()
     try:
         assert store.get_case(conn, "c1") is None
-        for table in ("documents", "consents", "events"):
-            assert conn.execute(f"SELECT COUNT(*) FROM {table} WHERE case_id = 'c1'").fetchone()[0] == 0
+        for name in store.CASE_COLLECTIONS:
+            assert conn.db[name].count_documents({"case_id": "c1"}) == 0
         assert store.get_case(conn, "c2") is not None  # other cases untouched
     finally:
         conn.close()

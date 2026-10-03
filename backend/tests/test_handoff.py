@@ -17,7 +17,6 @@ CITE = Citation("Example General Insurance", "policy_wording", 1, "", "UNVERIFIE
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(config, "DISTRIBUTOR_LEGAL_NAME", "Example Broking Pvt Ltd")
     monkeypatch.setattr(sarvam, "chat_json", lambda *a, **k: None)

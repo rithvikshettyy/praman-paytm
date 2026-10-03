@@ -33,7 +33,6 @@ def fake_ask(question, **kwargs):
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setenv("WA_APP_SECRET", SECRET)
     monkeypatch.setenv("WA_VERIFY_TOKEN", "verify-me")
@@ -277,7 +276,7 @@ def test_first_messages_arriving_together_open_one_case(env):
     [t.start() for t in threads]
     [t.join() for t in threads]
     conn = store.connect()
-    count = conn.execute("SELECT COUNT(*) FROM cases WHERE channel_user = ?", (USER,)).fetchone()[0]
+    count = conn.db.cases.count_documents({"channel_user": USER})
     conn.close()
     assert errors == [] and count == 1 and len(env.lists) == 4
 
@@ -377,6 +376,30 @@ def test_menu_and_language_keywords(env):
     conn.close()
 
 
+def heard(monkeypatch, words):
+    monkeypatch.setattr(sarvam, "speech_to_text", lambda *a, **k: {"transcript": words})
+
+
+def test_a_voice_note_asking_for_the_menu_gets_a_voice_reply(env, monkeypatch):
+    onboarded()
+    heard(monkeypatch, "menu")
+    post(payload(media_msg("audio", mime="audio/ogg")))
+    assert len(env.buttons) == 1 and env.audio == [(NUMBER, "up1")]
+
+
+def test_a_voice_note_choosing_a_language_gets_the_welcome_in_voice(env, monkeypatch):
+    heard(monkeypatch, "3")
+    post(payload(media_msg("audio", mime="audio/ogg")))
+    assert env.texts == [(NUMBER, f"[bn-IN] {conversation.WELCOME}")]
+    assert len(env.buttons) == 1 and len(env.audio) == 2  # the welcome and the menu, spoken
+
+
+def test_a_typed_menu_request_gets_no_voice(env):
+    onboarded()
+    post(payload(text_msg("menu")))
+    assert len(env.buttons) == 1 and env.audio == []
+
+
 def tap(button_id, mid="t1"):
     return {"from": NUMBER, "id": mid, "type": "interactive",
             "interactive": {"type": "button_reply", "button_reply": {"id": button_id, "title": "x"}}}
@@ -425,6 +448,52 @@ def test_complaint_without_the_insurers_name_says_so_and_never_crashes(env, monk
     assert conversation.NEED_NAME in env.texts[-1][1] and env.buttons == []
     post(payload(text_msg("letter", mid="c2")))
     assert env.texts[-1][1] == conversation.NEED_NAME
+
+
+def _complain_after_sending_a_policy(env, monkeypatch, extract):
+    monkeypatch.setattr(documents, "extract", extract)
+    choose("complain")
+    consent()
+    post(payload(media_msg("image", mid="p1")))
+    classify(monkeypatch, intent="grievance", grievance_class="insurance/claim_denied", product="health_policy")
+    post(payload(text_msg("my claim was rejected", mid="c1")))
+
+
+def _policy_read(confidence):
+    return lambda *a, **k: documents.Extraction(
+        "policy", False, "doc_ai",
+        documents.normalise_fields("policy", {"insurer": "Example General Insurance Company Ltd", "confidence": {"insurer": confidence}}),
+    )
+
+
+def test_a_policy_she_sends_gives_the_insurers_name_and_the_letter(env, monkeypatch):
+    _complain_after_sending_a_policy(env, monkeypatch, _policy_read(0.95))
+    [(_, body, buttons)] = env.buttons
+    assert "Example General Insurance Company Ltd" in body and [bid for bid, _ in buttons] == ["letter"]
+    post(payload(text_msg("letter", mid="c2")))
+    assert labels(env)[-1] == conversation.DRAFT_NOT_SENT
+
+
+def test_a_policy_read_with_low_confidence_does_not_name_the_insurer(env, monkeypatch):
+    _complain_after_sending_a_policy(env, monkeypatch, _policy_read(0.1))
+    assert env.buttons == [] and conversation.NEED_NAME in env.texts[-1][1]
+    post(payload(text_msg("letter", mid="c2")))
+    assert env.texts[-1][1] == conversation.NEED_NAME
+
+
+def test_a_failed_read_of_the_policy_still_answers_without_a_name(env, monkeypatch):
+    def broken(*a, **k):
+        raise RuntimeError("Doc AI down")
+
+    _complain_after_sending_a_policy(env, monkeypatch, broken)
+    assert env.buttons == [] and conversation.NEED_NAME in env.texts[-1][1]
+
+
+def test_a_policy_she_is_only_considering_is_not_read_for_a_name(env, monkeypatch):
+    monkeypatch.setattr(documents, "extract", lambda *a, **k: pytest.fail("read for a name while buying"))
+    choose("find")
+    consent()
+    post(payload(media_msg("image", mid="p1")))
 
 
 def test_a_complaint_that_is_not_placed_asks_for_detail_not_a_coverage_answer(env, monkeypatch):
@@ -479,3 +548,98 @@ def test_check_journey_still_summarises_with_the_plain_question(env, monkeypatch
     consent()
     post(payload(media_msg("image", mid="p1")))
     assert conversation.SUMMARY_QUESTION in asked
+
+
+# --- The transcript and her saved documents (MongoDB) --------------------------
+
+
+def case_of(conn):
+    return store.find_case_for_user(conn, USER)["id"]
+
+
+def test_the_chat_is_kept_masked_with_her_words_and_ours(env):
+    onboarded()
+    consent()
+    post(payload(text_msg("my PAN is ABCDE1234F, is cataract covered", mid="t1")))
+    conn = store.connect()
+    turns = store.case_messages(conn, case_of(conn))
+    assert [t["role"] for t in turns][0] == "user" and "praman" in [t["role"] for t in turns]
+    assert all("ABCDE1234F" not in t["text"] for t in turns)
+    conn.close()
+
+
+def test_a_document_she_sent_survives_a_restart(env):
+    from app.rag import mine
+
+    onboarded()
+    consent()
+    post(payload(media_msg("image", mid="d1")))
+    conn = store.connect()
+    cid = case_of(conn)
+    assert [d["filename"] for d in store.case_pages(conn, cid)] and mine.has(cid)
+    mine.forget(cid)  # a restart empties memory
+    assert not mine.has(cid)
+    post(payload(text_msg("what is the sum insured", mid="d2")))
+    assert mine.has(cid)
+    conn.close()
+
+
+def test_nothing_of_hers_is_saved_before_she_consents(env):
+    onboarded()
+    post(payload(media_msg("image", mid="n1")))
+    conn = store.connect()
+    cid = case_of(conn)
+    assert store.case_pages(conn, cid) == []
+    conn.close()
+
+
+def test_delete_everything_leaves_no_chat_and_no_document_text(env):
+    from app.rag import mine
+
+    onboarded()
+    consent()
+    post(payload(media_msg("image", mid="x1")))
+    conn = store.connect()
+    cid = case_of(conn)
+    assert store.case_messages(conn, cid) and store.case_pages(conn, cid)
+    post(payload(text_msg("delete everything", mid="x2")))
+    assert store.find_case_for_user(conn, USER) is None
+    assert store.case_messages(conn, cid) == [] and store.case_pages(conn, cid) == []
+    assert not mine.has(cid)
+    conn.close()
+
+
+# --- Reset: erase everything and start again ---------------------------------------
+
+
+@pytest.mark.parametrize("word", ["reset", "Reset!", "start over", "रीसेट"])
+def test_reset_erases_the_case_and_restarts_at_the_language_list(env, word):
+    choose("find")
+    consent()
+    env.texts.clear(), env.lists.clear(), env.buttons.clear()
+    post(payload(text_msg(word, mid="r1")))
+    assert env.texts == [(NUMBER, conversation.DELETED)] and len(env.lists) == 1
+    assert row_ids(env)[-1] == "lang:more"
+    conn = store.connect()
+    assert store.find_case_for_user(conn, USER) is None  # case, consent and journey are gone
+    conn.close()
+    post(payload(text_msg("hi", mid="r2")))  # the next message starts onboarding from nothing
+    assert len(env.lists) == 2
+    conn = store.connect()
+    assert store.find_case_for_user(conn, USER)["language"] is None
+    conn.close()
+
+
+def test_reset_works_before_a_language_is_chosen(env):
+    post(payload(text_msg("reset")))
+    assert (NUMBER, conversation.DELETED) in env.texts and len(env.lists) == 1
+
+
+def test_delete_everything_does_not_restart_onboarding(env):
+    onboarded()
+    post(payload(text_msg("delete everything")))
+    assert env.texts == [(NUMBER, conversation.DELETED)] and env.lists == []
+
+
+def test_the_welcome_mentions_reset():
+    assert "reset" in conversation.WELCOME

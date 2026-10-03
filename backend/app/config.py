@@ -45,7 +45,10 @@ def _bool(name: str, default: bool = False) -> bool:
 
 
 # --- Store ------------------------------------------------------------------
-STORE_PATH = Path(os.environ.get("PRAMAN_DB_PATH", LOCAL_DIR / "praman.db"))
+# MongoDB holds the cases, the chats and the text of her documents.
+# Local: docker run -d -p 27017:27017 mongo:7
+MONGO_URI = os.environ.get("MONGO_URI", "").strip() or "mongodb://localhost:27017"
+MONGO_DB = os.environ.get("MONGO_DB", "").strip() or "praman"
 # Originals land here only when the user consents to keep them (C7).
 ORIGINALS_DIR = LOCAL_DIR / "originals"
 # The website's words in each language, translated once by Sarvam and reused (git-ignored).
