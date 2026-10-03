@@ -39,8 +39,7 @@ export default function Home() {
     <div className="space-y-12">
       <section className="max-w-3xl pt-4">
         <h1 className="text-[2.6rem] font-bold leading-[1.05] tracking-tight text-ink sm:text-6xl">
-          Praman stops avoidable claim rejections before they happen, and sends each question to whoever owes the
-          answer.
+          Stop avoidable claim rejections before they happen.
         </h1>
       </section>
 
@@ -60,7 +59,7 @@ export default function Home() {
           <Link href="/console" className="font-medium text-pine underline">
             Open the distributor console
           </Link>{" "}
-          to see how many cases needed you, and how many went straight to the insurer or lender.
+          to see the cases that need you and the complaints waiting for a person.
         </p>
       </section>
     </div>
