@@ -87,6 +87,36 @@ SUMMARY_QUESTION = (
     "its dates, and its main amounts. At most three sentences."
 )
 
+WELCOME = (
+    "Hello, I am Praman. I read your insurance papers and answer from them and from the rules, in your "
+    "language. I never guess: if I cannot find it, I say so. Say \"delete everything\" at any time and "
+    "I erase your case."
+)
+MENU_PROMPT = "What would you like to do?"
+MENU_BUTTONS = (("journey:find", "Find a policy"), ("journey:check", "Check my policy"),
+                ("journey:complain", "Complaint"))
+OPEN_FIND = (
+    "Tell me who the policy is for and what matters to you, and I will say what to look for. Or send the "
+    "policy or quote you are considering, and send two or more to compare them."
+)
+OPEN_CHECK = "Send a photo or PDF of your policy, then ask me anything about it."
+OPEN_COMPLAIN = "Tell me what went wrong, in your own words. If you have the policy or the insurer's letter, send it too."
+JOURNEY_OPENINGS = {"find": OPEN_FIND, "check": OPEN_CHECK, "complain": OPEN_COMPLAIN}
+WHAT_TO_LOOK_FOR = (
+    "I cannot rank insurers, but these decide how a policy treats you at claim time: the sum insured; the "
+    "room-rent limit; the co-payment; the waiting period for illnesses you already have; what is excluded; "
+    "which hospitals are in the insurer's network; and how claims are paid (cashless or reimbursement). "
+    "Send me the policies you are considering and I will read these out of each one."
+)
+BUY_CHECK_QUESTION = (
+    "Before buying this policy, what should I know? Give the sum insured, the premium, the room-rent limit, "
+    "the co-payment, the waiting periods and the main exclusions, whichever are in the document. "
+    "At most five sentences."
+)
+NEED_NAME = "I do not yet know your insurer's full legal name, so I cannot address a letter to the right place."
+DRAFT_NOT_SENT = "This is a draft. Nothing has been sent."
+LETTER_BUTTON = ("letter", "Write the letter")
+
 _YES = {"yes", "y", "ok", "okay", "agree", "i agree", "haan", "han", "ha", "ho", "hoy",
         "हो", "होय", "हाँ", "हां", "ठीक", "ठीक आहे", "ठीक है", "चालेल"}
 _NO = {"no", "n", "nahi", "nahin", "nako", "नाही", "नहीं", "नको", "मत"}
@@ -122,6 +152,8 @@ class Message:
     # (answer_id, kind): the chat asks "Did this solve it?" under this message. kind is "answer"
     # (Yes / No, I need help) or "not_found" (offer to get a person).
     feedback: tuple[int, str] | None = None
+    # (id, title) reply buttons a channel may show; the id comes back as her next message.
+    buttons: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -141,6 +173,11 @@ def _normalised(text: str) -> str:
     """Lower case, punctuation dropped, spaces collapsed. Keeps Devanagari vowel signs."""
     kept = "".join(ch if unicodedata.category(ch)[0] in "LMN" or ch.isspace() else " " for ch in text or "")
     return " ".join(kept.lower().split())
+
+
+def is_delete(text: str) -> bool:
+    """She said "delete everything" (any wording in _DELETE)."""
+    return _normalised(text) in _DELETE
 
 
 def _number(text: str) -> int | None:
@@ -186,13 +223,17 @@ def _policy_context(conn: sqlite3.Connection, case: dict, context: Mapping[str, 
     return resolve_insurer(insurer), product
 
 
-def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str, context) -> tuple[Message, ...] | None:
+def _answer_text(
+    conn: sqlite3.Connection, case: dict, text: str, language: str, context, journey: str | None = None
+) -> tuple[Message, ...] | None:
     said = _normalised(text)
     if said in _THANKS:
         return (Message(THANKS),)
     if said in _GREETINGS:
         return (Message(GREETING),)
     found = agent.classify(text)
+    if journey == "complain" and found.intent != "smalltalk" and not (found.intent == "grievance" and found.grievance_class):
+        return (Message(NEEDS_DETAIL),)  # a complaint needs the problem and the product, not a coverage answer
     if found.intent == "smalltalk":
         return (Message(FOLLOW_UP if _has_hers(case["id"]) else GREETING),)
     unplaced_grievance = found.intent == "grievance" and not found.grievance_class
@@ -226,10 +267,50 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
             return (Message(NEEDS_DETAIL),)
         step = ladders.load_steps()[route.first_step]
         who = route.respondent_name or f"your {route.respondent}"
-        return (Message(f"This one is for {who}. First step: {step.label}.", unverified=step.verified_by == cases.UNVERIFIED),)
+        said_route = f"This one is for {who}. First step: {step.label}."
+        unverified = step.verified_by == cases.UNVERIFIED
+        if journey != "complain":
+            return (Message(said_route, unverified=unverified),)
+        if route.respondent_name:
+            return (Message(said_route, unverified=unverified, buttons=(LETTER_BUTTON,)),)
+        return (Message(f"{said_route} {NEED_NAME}", unverified=unverified),)
     if found.intent == "pre_decision":
         return (Message(PRE_DECISION),)
     return None
+
+
+def _letter(conn: sqlite3.Connection, case: dict, language: str) -> tuple[Message, ...]:
+    """The draft letter, read back in her language. Nothing is sent."""
+    from app.services import drafts
+
+    try:
+        draft = drafts.compose(conn, case["id"], language)
+    except (drafts.RespondentUnknown, LookupError):
+        return (Message(NEED_NAME),)
+    return (Message(draft["readback"], localized=True), Message(DRAFT_NOT_SENT))
+
+
+def _find_text(conn: sqlite3.Connection, case: dict, text: str, language: str) -> tuple[Message, ...] | None:
+    """Buying journey, text only: her documents first; else the regulation corpus (no insurer or
+    product, so no insurer's wording is used); else what to look for."""
+    if _has_hers(case["id"]):
+        return _ask_hers(conn, case["id"], text, language)
+    result = _ask(text, language=language)
+    answer_id = _log_answer(conn, case["id"], text, result, "sources")
+    if result.status == "answered":
+        return (_cited(result, (answer_id, "answer")),)
+    return (Message(WHAT_TO_LOOK_FOR, feedback=(answer_id, "not_found")),)
+
+
+def _text_reply(conn, case: dict, text: str, language: str, context, journey: str | None):
+    """Text she typed, by the journey she chose; no journey is the web chat's own flow."""
+    if journey == "complain" and _normalised(text) == "letter":
+        return _letter(conn, case, language)
+    if journey == "find":
+        found = _find_text(conn, case, text, language)
+        if found:
+            return found
+    return _answer_text(conn, case, text, language, context, journey)
 
 
 # --- Her own documents (web chat) ---------------------------------------------------
@@ -293,7 +374,9 @@ def forget_documents(case_id: str) -> None:
     mine.forget(case_id)
 
 
-def _explain(conn, case: dict, photos: list[Attachment], text: str, language: str, checklist, context) -> list[Message]:
+def _explain(
+    conn, case: dict, photos: list[Attachment], text: str, language: str, checklist, context, journey: str | None = None
+) -> list[Message]:
     """Read each document and hold its text for her questions.
 
     With a message that asks something, that is answered (from these documents first);
@@ -302,6 +385,7 @@ def _explain(conn, case: dict, photos: list[Attachment], text: str, language: st
     from app.rag import mine
 
     case_id = case["id"]
+    buying = journey == "find"  # a policy she is only considering is not her claim: it fills no checklist
     messages: list[Message] = []
     read: list[str] = []
     for index, attachment in enumerate(photos):
@@ -321,14 +405,14 @@ def _explain(conn, case: dict, photos: list[Attachment], text: str, language: st
         # A health claim document still ticks its checklist slot, quietly; a bike, life or other
         # policy never fills the health claim checklist.
         slot = cases.classify_slot(checklist, caption=attachment.caption) or cases.classify_slot(checklist, text=pages[0][1])
-        if slot is not None and product in (None, "health_policy"):
+        if slot is not None and product in (None, "health_policy") and not buying:
             cases.attach(conn, case_id, data, filename, mime_type=attachment.content_type, slot=slot, checklist=checklist)
     if not read:
         return messages
 
     said = _normalised(text)
     asks = said and said not in _GREETINGS | _THANKS and cases.classify_slot(checklist, caption=text) is None
-    answered = _answer_text(conn, case, text, language, context) if asks else None
+    answered = _text_reply(conn, case, text, language, context, journey) if asks else None
     offer = Message(READ_IT if len(read) == 1 else READ_THEM)
     if answered:
         return messages + list(answered) + [offer]
@@ -336,7 +420,7 @@ def _explain(conn, case: dict, photos: list[Attachment], text: str, language: st
     for name in read:
         found = mine.collection(case_id, only=name, first_chunks=config.RAG_TOP_K)
         try:
-            summary = _ask(SUMMARY_QUESTION, language=language, question_language="en-IN",
+            summary = _ask(BUY_CHECK_QUESTION if buying else SUMMARY_QUESTION, language=language, question_language="en-IN",
                            insurer=mine.YOUR_DOCUMENT, product=mine.PRODUCT, collection=found)
         finally:
             mine.drop(found)
@@ -397,6 +481,7 @@ def respond(
     context: Mapping[str, Any] | None = None,
     checklist: cases.Checklist | None = None,
     explain_documents: bool = False,
+    journey: str | None = None,
 ) -> Reply:
     """Handle one message from ``user`` (a channel-scoped id such as whatsapp:+91… or web:<session>)."""
     checklist = checklist or cases.load_checklist()
@@ -446,7 +531,7 @@ def respond(
     number = _number(text) if text and not photos else None
 
     if photos and explain_documents:
-        return Reply(case_id, reply_language, tuple(_explain(conn, case, photos, text, reply_language, checklist, context)))
+        return Reply(case_id, reply_language, tuple(_explain(conn, case, photos, text, reply_language, checklist, context, journey)))
     if photos:
         for index, attachment in enumerate(photos):
             try:
@@ -464,7 +549,7 @@ def respond(
         if slot is not None:
             cases.choose_slot(conn, case_id, pending, slot, checklist)
     elif text and pending is None:
-        answered = _answer_text(conn, case, text, reply_language, context)
+        answered = _text_reply(conn, case, text, reply_language, context, journey)
         if answered:
             return Reply(case_id, reply_language, answered)
 

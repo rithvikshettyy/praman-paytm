@@ -11,12 +11,10 @@ import hmac
 import logging
 import os
 from dataclasses import dataclass
-from pathlib import Path
 
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+from app import config  # noqa: F401  (loads backend/.env: the one env file for the whole service)
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +94,8 @@ def parse_inbound(message: dict) -> Inbound:
         interactive = message.get("interactive") or {}
         reply = interactive.get("button_reply") or interactive.get("list_reply")
         if reply:
-            return Inbound(kind="text", text=(reply.get("title") or "").strip(), **base)
+            # The id is stable (YES, journey:find, letter); the title is translated and can be cut.
+            return Inbound(kind="text", text=(reply.get("id") or reply.get("title") or "").strip(), **base)
     if kind == "button":
         return Inbound(kind="text", text=((message.get("button") or {}).get("text") or "").strip(), **base)
     return Inbound(kind="unsupported", **base)
