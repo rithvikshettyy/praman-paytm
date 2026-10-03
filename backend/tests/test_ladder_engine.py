@@ -430,3 +430,27 @@ def test_bill_head_totals_sum_each_head():
 def test_bill_head_totals_reject_an_unknown_head():
     with pytest.raises(ValueError):
         le.bill_head_totals([("maybe", 100)])
+
+
+# --- Who pays what on a bill ---------------------------------------------------
+
+
+def test_a_bill_is_split_in_order_items_cut_co_pay_then_sum_insured():
+    split = le.split_bill(184500, not_payable=4500, room_deduction=10000, co_pay_percent=10, sum_insured=150000)
+    assert (split.not_payable, split.room_deduction, split.co_pay, split.over_sum_insured) == (4500, 10000, 17000, 3000)
+    assert (split.insurer_pays, split.you_pay) == (150000, 34500)
+    assert split.insurer_pays + split.you_pay == split.billed
+
+
+def test_a_bill_inside_every_limit_is_paid_in_full_by_the_insurer():
+    split = le.split_bill(30000, sum_insured=500000)
+    assert (split.insurer_pays, split.you_pay) == (30000, 0)
+
+
+def test_a_bill_the_policy_does_not_cover_is_all_hers():
+    split = le.split_bill(184500, covered=False, not_payable=4500, co_pay_percent=10, sum_insured=150000)
+    assert (split.covered, split.insurer_pays, split.you_pay) == (False, 0, 184500)
+
+
+def test_an_unknown_sum_insured_caps_nothing():
+    assert le.split_bill(1000.4, co_pay_percent=20).co_pay == 200  # whole rupees, half up

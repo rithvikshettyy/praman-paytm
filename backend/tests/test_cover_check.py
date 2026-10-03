@@ -60,14 +60,35 @@ def chat(text):
     return [m["text"] for m in client.post("/api/chat", json={"session_id": SESSION, "text": text, "language": "en-IN"}).json()["messages"]]
 
 
-def test_a_bill_after_the_policy_ended_is_caught(monkeypatch):
+def test_a_bill_after_the_policy_ended_is_all_hers(monkeypatch):
     send(POLICY_PAGES, monkeypatch, "policy.pdf")
     send(BILL_PAGES, monkeypatch, "bill.pdf")
-    [text] = chat("will this be covered in my insurance")
-    assert text.startswith(conversation.COVER_HEADLINES["do_not_file_yet"])
+    [text] = chat("will my insurance cover it?")  # her words on WhatsApp
+    assert "Bill total: ₹1,84,500" in text
+    assert conversation.COVER_NOTHING.format(amount="₹1,84,500") in text
+    assert "after the policy period ended on 17 Sep 2016" in text  # admission 26 Feb 2024
     assert "Documents still missing: 4 of 6." in text  # policy and bill fill two of the six slots
-    assert "after the policy period ended on 17 Sep 2016" in text  # paper check: admission 26 Feb 2024
     assert text.endswith(conversation.COVER_CAVEAT)
+
+
+def test_a_covered_bill_is_split_between_insurer_and_her(monkeypatch):
+    policy = {**POLICY, "period_end_date": sure(date(2026, 9, 17)), "co_pay_percent": sure(10.0),
+              "sum_insured": sure(150000.0)}
+    bill = {**BILL, "line_items": sure([{"description": "Surgeon charges", "amount": 180000.0},
+                                        {"description": "Gloves and masks", "amount": 4500.0}])}
+    monkeypatch.setattr(documents, "extract", lambda data, name, doc_type, **k: Extraction(
+        doc_type, False, "doc_ai", {"policy": policy, "bill": bill}[doc_type]))
+    send(POLICY_PAGES, monkeypatch, "policy.pdf")
+    send(BILL_PAGES, monkeypatch, "bill.pdf")
+    [text] = chat("how much will I have to pay?")
+    assert ("Bill total: ₹1,84,500\n"
+            "- Items insurers usually do not pay: ₹4,500\n"
+            "- Your co-payment (10%): ₹18,000\n"
+            "- Above your sum insured: ₹12,000\n"
+            "Insurer pays (estimate): ₹1,50,000\n"
+            "You pay (estimate): ₹34,500") in text
+    assert conversation.COVER_IF in text  # the waiting period and exclusions are still unknown
+    assert "What still decides it:" in text
 
 
 def test_a_bill_without_a_policy_asks_for_the_policy(monkeypatch):

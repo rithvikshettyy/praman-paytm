@@ -187,6 +187,7 @@ def papers_view(result: le.PapersCheck) -> dict[str, Any]:
         "passed": [{"check": c, "label": checks[c]["label"]} for c in result.passed],
         "skipped": [{"check": c, "label": checks[c]["label"], "needs": checks[c]["needs"]} for c in result.skipped],
         "to_fix": sum(f["severity"] == "fix" for f in findings),
+        "non_payable_amount": next((f.values["amount"] for f in result.findings if f.problem == "non_payable_items"), 0),
     }
 
 
@@ -221,7 +222,41 @@ def assess(conn: Store, case_id: str, fields: dict[str, dict[str, documents.Fiel
     fact_sheet = le.Facts(**facts)
     verdict = cases.check_readiness(conn, case_id, fact_sheet)
     papers = check_papers(conn, case_id, trusted.get("policy"), trusted.get("bill"))
-    return {"papers": papers, **view(verdict, fact_sheet, ladders.load("insurance_health_claim"))}
+    split = bill_split(verdict, fact_sheet, papers, trusted.get("policy") or {}, trusted.get("bill") or {})
+    return {"papers": papers, "split": split, **view(verdict, fact_sheet, ladders.load("insurance_health_claim"))}
+
+
+# Rules that say "not yet ready to file", not "not covered": they never zero the insurer's share.
+_FILING_ONLY = {"documents_incomplete"}
+
+
+def _cover_pending(verdict: le.Verdict) -> set[str]:
+    """Facts still unknown that a rule deciding cover (not filing) needs."""
+    ladder = ladders.load("insurance_health_claim")
+    return {
+        name for rule in ladder.rules if rule.effect == le.BLOCK and rule.id not in _FILING_ONLY
+        for name in rule.facts if name in verdict.facts_pending
+    }
+
+
+def bill_split(verdict: le.Verdict, facts: le.Facts, papers: dict[str, Any], policy: dict, bill: dict) -> dict | None:
+    """Who pays what on the bill (engine arithmetic), or None without a trusted bill total.
+    Nothing is covered when the admission falls outside the policy period or a rule blocks the
+    claim itself; ``conditional`` when cover still hangs on facts she has not given."""
+    if bill.get("bill_total") is None:
+        return None
+    outside = [f["message"] for f in papers["findings"] if f["check"] == "admission_in_policy_period"]
+    blocked = [hit for hit in verdict.blocks if hit.rule_id not in _FILING_ONLY]
+    room = next((hit.values["deduction"] for hit in verdict.deductions if hit.values.get("deduction") is not None), 0)
+    split = le.split_bill(
+        bill["bill_total"], covered=not (outside or blocked), not_payable=papers["non_payable_amount"],
+        room_deduction=room, co_pay_percent=policy.get("co_pay_percent"), sum_insured=facts.sum_insured,
+    )
+    return {
+        **dataclasses.asdict(split),
+        "co_pay_percent": policy.get("co_pay_percent"),
+        "conditional": split.covered and bool(_cover_pending(verdict)),
+    }
 
 
 def _merged(conn: Store, case_id: str, doc_type: str) -> dict[str, documents.Field] | None:

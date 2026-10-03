@@ -148,6 +148,51 @@ def bill_head_totals(lines) -> dict[str, float]:
     return {head: float(total) for head, total in totals.items()}
 
 
+@dataclass(frozen=True)
+class BillSplit:
+    """Who pays what on one bill, in whole rupees. An estimate from her papers, not a decision."""
+
+    billed: int
+    not_payable: int = 0  # items insurers usually do not pay
+    room_deduction: int = 0  # proportionate cut for a room above the cap
+    co_pay: int = 0  # her share of what is left, by the policy's co-payment
+    over_sum_insured: int = 0  # what the sum insured cannot reach
+    insurer_pays: int = 0
+    you_pay: int = 0
+    covered: bool = True  # False: this policy pays nothing for this bill
+
+
+def split_bill(
+    billed: float,
+    *,
+    covered: bool = True,
+    not_payable: float = 0,
+    room_deduction: float = 0,
+    co_pay_percent: float | None = None,
+    sum_insured: float | None = None,
+) -> BillSplit:
+    """Split a bill between insurer and patient, in this order:
+    billed - items not paid - room-cap cut = covered amount; co-payment comes off that;
+    the insurer pays the rest up to the sum insured; she pays everything else."""
+    total = _dec(billed)
+    if not covered:
+        return BillSplit(billed=_rupees(total), you_pay=_rupees(total), covered=False)
+    left = max(total - _dec(not_payable) - _dec(room_deduction), Decimal(0))
+    co_pay = left * _dec(co_pay_percent or 0) / 100
+    left -= co_pay
+    over = max(left - _dec(sum_insured), Decimal(0)) if sum_insured is not None else Decimal(0)
+    insurer = _rupees(left - over)
+    return BillSplit(
+        billed=_rupees(total),
+        not_payable=_rupees(_dec(not_payable)),
+        room_deduction=_rupees(_dec(room_deduction)),
+        co_pay=_rupees(co_pay),
+        over_sum_insured=_rupees(over),
+        insurer_pays=insurer,
+        you_pay=_rupees(total) - insurer,
+    )
+
+
 # --- Calculations a rule can attach ------------------------------------------
 
 

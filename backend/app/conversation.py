@@ -116,13 +116,28 @@ BUY_CHECK_QUESTION = (
     "At most five sentences."
 )
 # "Will this be covered?" with her policy and bill both read: the engine's verdict, not a model's guess.
+COVER_INTRO = "I checked your bill against your policy."
+COVER_BILLED = "Bill total: {amount}"
+COVER_PARTS = (  # (BillSplit field, label): what comes off before the insurer pays; shown when not zero
+    ("not_payable", "Items insurers usually do not pay: {amount}"),
+    ("room_deduction", "Cut because the room costs more than the policy allows: {amount}"),
+    ("co_pay", "Your co-payment ({percent}%): {amount}"),
+    ("over_sum_insured", "Above your sum insured: {amount}"),
+)
+COVER_INSURER = "Insurer pays (estimate): {amount}"
+COVER_YOU = "You pay (estimate): {amount}"
+COVER_NOTHING = "This policy pays nothing for this bill, so you pay all of it: {amount}."
+COVER_IF = "This assumes your policy covers this treatment."
+COVER_NO_TOTAL = (
+    "I could not read the bill's total clearly, so I cannot split it between you and the insurer. "
+    "Send a clear photo of the page with the grand total."
+)
 COVER_HEADLINES = {
-    le.FILE: "I checked your bill against your policy. Nothing I check stops this claim.",
-    le.FILE_WITH_KNOWN_DEDUCTION: "I checked your bill against your policy. You can claim, but expect a cut.",
-    le.DO_NOT_FILE_YET: "I checked your bill against your policy. Do not file this claim yet.",
-    le.FACTS_PENDING: "I checked your bill against your policy, but I cannot yet say whether it is covered.",
+    le.FILE: "Nothing I check stops you filing this claim.",
+    le.FILE_WITH_KNOWN_DEDUCTION: "You can file this claim, with the cut above.",
+    le.DO_NOT_FILE_YET: "Do not file this claim yet:",
+    le.FACTS_PENDING: "I cannot yet say for sure whether it is covered.",
 }
-COVER_PAYABLE = "Estimated amount the insurer pays: {payable} of {billed}."
 COVER_ASK = "What still decides it: {questions} Look for these in your policy, or ask me about each one."
 COVER_CAVEAT = "This is what your papers show, not an approval. The insurer decides the claim."
 COVER_NEEDS_POLICY = "To tell you whether this bill is covered, I need your policy too. Send a photo or PDF of it."
@@ -138,13 +153,22 @@ _DELETE = {"delete everything", "delete all", "delete my data", "सगळं �
 # "Start again": the same erasing as "delete everything"; the WhatsApp channel then restarts onboarding.
 _RESET = {"reset", "reset everything", "reset chat", "restart", "start over", "रीसेट", "रिसेट",
           "रीसेट करो", "फिर से शुरू करो", "पुन्हा सुरू करा"}
-# She is asking about the claim documents: the checklist answers that, whatever else is under way.
-# She is asking whether this bill will be paid (a cover word and a word pointing at the bill), not what
-# the policy covers in general ("does it cover maternity?" stays with the policy wording).
+# She is asking whether this bill will be paid, or how much: a cover word with a word pointing at the
+# bill, or a cover word and nothing but everyday words ("will my insurance cover it?", "how much do I
+# pay?"). "Does it cover maternity?" names something else, so it stays with the policy wording.
 _COVER_WORDS = {"cover", "covered", "covers", "coverage", "payable", "pay", "paid", "reimburse", "reimbursed",
-                "claimable", "कवर", "कव्हर", "क्लेम"}
+                "claimable", "कवर", "कव्हर", "क्लेम", "भरना", "देना", "मिलेगा"}
 _BILL_WORDS = {"this", "these", "bill", "bills", "hospital", "expense", "expenses", "treatment", "admission",
-               "यह", "ये", "इसका", "हे", "बिल", "खर्च", "अस्पताल", "हॉस्पिटल", "रुग्णालय"}
+               "यह", "ये", "इसका", "इसे", "हे", "बिल", "खर्च", "अस्पताल", "हॉस्पिटल", "रुग्णालय"}
+_EVERYDAY_WORDS = {
+    "will", "would", "can", "could", "does", "do", "did", "is", "are", "was", "be", "get", "have", "has", "need",
+    "my", "me", "i", "we", "our", "the", "a", "an", "it", "that", "of", "to", "for", "by", "under", "in", "from",
+    "and", "or", "how", "much", "what", "which", "part", "amount", "money", "all", "full", "whole", "entire",
+    "insurance", "policy", "insurer", "company", "claim", "rest", "remaining", "left", "own", "pocket",
+    "क्या", "मेरा", "मेरी", "मेरे", "बीमा", "पॉलिसी", "कितना", "कितने", "करेगा", "करेगी", "होगा", "होगी", "है",
+    "को", "का", "की", "के", "में", "से", "पैसा", "पैसे", "मुझे", "हमें",
+}
+# She is asking about the claim documents: the checklist answers that, whatever else is under way.
 _CHECKLIST_WORDS = {"missing", "document", "documents", "checklist", "status", "pending", "कागद", "कागदपत्र",
                     "कागदपत्रे", "दस्तावेज", "दस्तावेज़", "बाकी", "राहिले"}
 # Answered without a model call, so a greeting works even when Sarvam is down.
@@ -259,7 +283,8 @@ def _answer_text(
     if said in _GREETINGS:
         return (Message(GREETING),)
     words = set(said.split())
-    if journey != "complain" and words & _COVER_WORDS and words & _BILL_WORDS:
+    about_this_bill = words & _BILL_WORDS or words <= _COVER_WORDS | _EVERYDAY_WORDS
+    if journey != "complain" and words & _COVER_WORDS and about_this_bill:
         verdict = _cover(conn, case["id"])
         if verdict:
             return verdict
@@ -320,19 +345,33 @@ def _cover(conn: Store, case_id: str) -> tuple[Message, ...] | None:
         if "bill" in kinds:
             return (Message(COVER_NEEDS_POLICY),)
         return None  # no bill yet: her policy wording answers what it covers
-    lines = [COVER_HEADLINES.get(found["outcome"], COVER_HEADLINES[le.FACTS_PENDING])]
-    lines += [m["text"] for m in found["messages"]]
-    split = found["breakdown"]
-    if split and not split["pending"]:
-        billed = split["deductible_heads"] + split["exempt_heads"]
-        lines.append(COVER_PAYABLE.format(payable=ladders.inr(split["payable_estimate"]), billed=ladders.inr(billed)))
-    lines += [f["message"] for f in found["papers"]["findings"]]
+    sections = [COVER_INTRO, _split_lines(found["split"])]
+    if found["split"] and found["split"]["conditional"]:
+        sections.append(COVER_IF)
+    reasons = [m["text"] for m in found["messages"]] + [f["message"] for f in found["papers"]["findings"]]
+    sections.append("\n".join([COVER_HEADLINES.get(found["outcome"], COVER_HEADLINES[le.FACTS_PENDING])] + reasons))
     asked = [q["question"] for q in found["questions"] if q["required"]]
-    if found["outcome"] == le.FACTS_PENDING and asked:
-        lines.append(COVER_ASK.format(questions=" ".join(asked)))
-    lines.append(COVER_CAVEAT)
+    if asked:
+        sections.append(COVER_ASK.format(questions=" ".join(asked)))
+    sections.append(COVER_CAVEAT)
     unverified = found["unverified"] or any(f["unverified"] for f in found["papers"]["findings"])
-    return (Message("\n\n".join(lines), unverified=unverified),)
+    return (Message("\n\n".join(sections), unverified=unverified),)
+
+
+def _split_lines(split: dict | None) -> str:
+    """The bill split as lines: total, what comes off, then the insurer's share and hers."""
+    if split is None:
+        return COVER_NO_TOTAL
+    lines = [COVER_BILLED.format(amount=ladders.inr(split["billed"]))]
+    if not split["covered"]:
+        return "\n".join(lines + [COVER_NOTHING.format(amount=ladders.inr(split["you_pay"]))])
+    lines += [
+        "- " + label.format(amount=ladders.inr(split[part]), percent=f"{split['co_pay_percent']:g}" if split["co_pay_percent"] else "")
+        for part, label in COVER_PARTS if split[part]
+    ]
+    lines += [COVER_INSURER.format(amount=ladders.inr(split["insurer_pays"])),
+              COVER_YOU.format(amount=ladders.inr(split["you_pay"]))]
+    return "\n".join(lines)
 
 
 def _letter(conn: Store, case: dict, language: str) -> tuple[Message, ...]:
