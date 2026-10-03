@@ -202,3 +202,51 @@ def check_papers(
             "heads_up": [f["problem"] for f in view["findings"] if f["severity"] != "fix"],
         })
     return view
+
+
+# --- One verdict from her policy and bill -------------------------------------
+
+
+def assess(conn: Store, case_id: str, fields: dict[str, dict[str, documents.Field]]) -> dict[str, Any]:
+    """Verdict, open questions and paper checks from each document's fields ({"policy": ..., "bill": ...}).
+    Only values that clear the confidence gate reach the engine or the checks."""
+    facts, trusted = {}, {}
+    for doc_type, read in fields.items():
+        facts.update(documents.review(doc_type, read).facts)
+        trusted[doc_type] = documents.trusted_values(read)
+    state = cases.checklist_state(conn, case_id)
+    facts["documents_required"] = state.required
+    if state.collected:
+        facts["documents_collected"] = state.collected
+    fact_sheet = le.Facts(**facts)
+    verdict = cases.check_readiness(conn, case_id, fact_sheet)
+    papers = check_papers(conn, case_id, trusted.get("policy"), trusted.get("bill"))
+    return {"papers": papers, **view(verdict, fact_sheet, ladders.load("insurance_health_claim"))}
+
+
+def _merged(conn: Store, case_id: str, doc_type: str) -> dict[str, documents.Field] | None:
+    """Every document of this type on the case as one: per field the newest value read; a bill
+    sent page by page has its lines joined (a page sent twice counts once)."""
+    merged: dict[str, documents.Field] = {}
+    lines: list[dict] = []
+    line_confidence = 1.0
+    for row in store.case_documents(conn, case_id, (doc_type,)):  # newest first
+        for name, read in documents.stored_fields(doc_type, row["fields"]).items():
+            if name == "line_items":
+                for line in read.value or ():
+                    if line not in lines:
+                        lines.append(line)
+                        line_confidence = min(line_confidence, read.confidence)
+            elif read.value is not None and name not in merged:
+                merged[name] = read
+    if lines:
+        merged["line_items"] = documents.Field(lines, line_confidence)
+    return merged or None
+
+
+def from_case(conn: Store, case_id: str) -> dict[str, Any] | None:
+    """The assessment of the policy and bill she sent in the chat; None until both are read."""
+    policy, bill = _merged(conn, case_id, "policy"), _merged(conn, case_id, "bill")
+    if policy is None or bill is None:
+        return None
+    return assess(conn, case_id, {"policy": policy, "bill": bill})
