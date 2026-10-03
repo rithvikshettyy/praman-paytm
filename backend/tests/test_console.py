@@ -84,6 +84,8 @@ def test_the_counters(seeded):
         "escalations_drafted": 0,
         "cases_routed_away": 4,
         "insurer_queries_caught": 0,
+        "letters_sent": 0,
+        "follow_ups_triggered": 0,
         "answers_given": 0,
         "answers_confirmed_solved": 0,
         "asked_for_a_person": 0,

@@ -181,7 +181,7 @@ export interface Draft {
   addressee: string;
   text: string;
   unverified: boolean;
-  status: "drafted" | "approved";
+  status: "drafted" | "approved" | "sending" | "sent";
   created_at: string;
   approved_at: string | null;
   readback?: string;

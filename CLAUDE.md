@@ -5,11 +5,12 @@ Standing rules for this repo. Read PRD-PAYTM.md before any feature work. There i
 ## Layout
 - `backend/`: Python API, engine, data, tests, scripts.
 - `whatsapp/`: the WhatsApp channel (Meta Cloud API); everything WhatsApp lives here and `backend/app/main.py` mounts it.
+- `n8n/`: the importable n8n workflow that delivers approved letters and keeps the response clock, with its setup README. The backend side is `backend/app/services/n8n.py`.
 - `frontend/`: Next.js site. Calls the backend API only. No business logic, no rule checks, no money maths.
 - PRD paths like `haq/...` mean `backend/app/...`; `data/...` and `tests/...` mean `backend/data/...` and `backend/tests/...`. See Module map.
 
 ## Module map
-State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (`github.com/rithvikshettyy/praman` @ `e2a8360`, loan-document product, Flask). Kept: Sarvam client, config, Doc AI intake pipeline, block normaliser, translation cache. Left behind: loan rules/reports/EMI/FOIR/news, Clerk auth, Supabase store, Twilio notebook. PRD C1-C7, N1, N2, N3, N5, N6, N8 (backend) done, plus RAG for coverage questions and the demo web front end; C5 values still UNVERIFIED pending hand checks. Not a git repo. 969 tests. File names follow the PRD so its references stay greppable. Update a row when its file lands. Resolve data paths from the package (`config.BACKEND_DIR` / `DATA_DIR` / `LADDERS_DIR`), never the working directory.
+State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (`github.com/rithvikshettyy/praman` @ `e2a8360`, loan-document product, Flask). Kept: Sarvam client, config, Doc AI intake pipeline, block normaliser, translation cache. Left behind: loan rules/reports/EMI/FOIR/news, Clerk auth, Supabase store, Twilio notebook. PRD C1-C7, N1, N2, N3, N5, N6, N8 (backend) done, plus RAG for coverage questions and the demo web front end; C5 values still UNVERIFIED pending hand checks. Not a git repo. 1031 tests. File names follow the PRD so its references stay greppable. Update a row when its file lands. Resolve data paths from the package (`config.BACKEND_DIR` / `DATA_DIR` / `LADDERS_DIR`), never the working directory.
 
 | Role | PRD path | Here now | Path |
 |---|---|---|---|
@@ -46,11 +47,12 @@ State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (
 | Redaction (N6): Aadhaar, PAN, account numbers (9-18 digits), policy/claim numbers masked in every text sent to Sarvam (chat, translate, language ID, TTS). Photos to Doc AI cannot be masked; consent covers them | not named | exists | `backend/app/services/redact.py` (applied in `clients/sarvam.py`) |
 | Voice: TTS (mp3) held in memory and served at `/media/<token>.mp3` for WhatsApp and the web chat; STT for `/api/transcribe` (the web chat: words go into the box for her to check) and `/api/voice` | not named | exists | `backend/app/services/voice.py`, `backend/app/clients/sarvam.py` |
 | Pitch deck: one self-contained HTML file, 18 animated slides (keys: arrows/space, F fullscreen, O overview). Figures come from the labelled example policy and bill; no invented numbers; nothing in it calls the backend | not named | exists | `frontend/public/deck/index.html` (served at `/deck/index.html`) |
+| n8n delivery and follow-up (edge; n8n decides how and when, Praman decides what and to whom): `dispatch` (approved draft + `contact_insurer` consent, letter redacted, signed `x-praman-secret`, 502 and nothing recorded if n8n is down), callbacks `delivered` (draft -> sent, clock starts on that step's window, repeat callbacks change nothing) / `failed` (back to approved) / `clock_due` (the case's own ladder answers escalate, ask_agent, wait or stop; stops on resolved, deleted, consent withdrawn; WhatsApp nudge to her), all refused without the secret. Events `letter_dispatched`, `letter_delivered`, `delivery_failed`, `clock_due`; counters `letters_sent`, `follow_ups_triggered`. `N8N_DEMO_DAYS_AHEAD` is demo-only. Verified end to end against n8n Cloud on 2026-10-03 (delivery, callback, clock, agent email; demo wait of 20 seconds). Premium reminders (second workflow, `n8n/praman-reminders.workflow.json`): she asks in the chat, the date is offered from her document or asked, she confirms it and agrees (`premium_reminders` consent), `services/reminders.py` plans the days (`REMINDER_DAYS_BEFORE`, never a past day) and hands them to n8n with the case id, her email and the due date only; n8n waits for each day and calls `/api/n8n/reminder-due`, which allows it only while the case, her consent and that reminder are in force (once per date); the mail says the premium "may be" due, never overdue or paid; "stop reminders" cancels. Events `reminder_scheduled`, `reminder_sent`, `reminder_cancelled`; the address is not stored. Until the chat asks for an email, `REMINDER_EMAIL` in `backend/.env` is the recipient (demo) | not named | exists | `backend/app/services/n8n.py`, `n8n/` |
 | Deadlines / clocks (N7, post-hackathon) | "existing deadline machinery" | missing | `backend/app/core/deadlines.py` |
 | Ladders | `data/ladders/*.yaml` | `insurance_health_claim.yaml` exists (N1, 7 rules, all UNVERIFIED); motor, lending, RBI missing | `backend/data/ladders/` |
 | Statutes | `data/statutes.json` | missing | `backend/data/statutes.json` |
 | Demo fixtures: pre-seeded cases (e.g. the six-year non-disclosure denial), each labelled as an example case | not named | missing | `backend/data/fixtures/` |
-| Tests. Run: `python -m pytest` from `backend/`. Sarvam and Meta are faked; RAG uses offline hashing embeddings; no test touches the network | `tests/` | 969 tests, all pass | `backend/tests/`, `whatsapp/tests/` |
+| Tests. Run: `python -m pytest` from `backend/`. Sarvam and Meta are faked; RAG uses offline hashing embeddings; no test touches the network | `tests/` | 1031 tests, all pass | `backend/tests/`, `whatsapp/tests/` |
 | Frontend (Step 9): Next.js 16 App Router + TS + Tailwind v4. Pages `/`, `/policies`, `/readiness`, `/checklist/[caseId]`, `/case/[caseId]`, `/console`; chat widget on every page; consent modal before uploads. Display only; `lib/api.ts` is the single backend client | not named | exists; `npm run lint` and `npm run build` pass | `frontend/` |
 
 ## Engine
@@ -61,7 +63,7 @@ State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (
 
 ## Data and honesty
 - Every legal or regulatory value in `backend/data/` carries `verified_by`. Unverified stays `UNVERIFIED` and is shown to the user with a badge.
-- Never say "filed" or "submitted" for something only drafted and approved in our DB. Use "approved and ready to send".
+- Never say "filed" or "submitted". Drafted and approved in our DB is "approved and ready to send"; "sent" only after n8n reports delivery (`letter_delivered`), and it never means the insurer received or accepted it. Use "approved and ready to send".
 - No invented statistics, savings figures, rejection rates or adoption numbers in code, UI or seed data. Seed data is labelled as an example case.
 - Never use the sponsor's name or logo in the product name or UI branding. One exception, agreed 2026-10-01: the site footer carries a plain-text event credit, "Built for the Paytm Build for India hackathon (AI-Powered Financial Journeys track). Not affiliated with or endorsed by Paytm." No logo, no "partnered with". Second exception, agreed 2026-10-01: the distributor may be named where the product addresses it, through `backend/.env` only (`DISTRIBUTOR_SHORT_NAME=Paytm` for the console headline and filters, `DISTRIBUTOR_LEGAL_NAME` for drafts addressed to the distributor). The repo's `.env.example` stays blank.
 
@@ -78,6 +80,7 @@ State on 2026-09-30: shared infrastructure ported from the earlier Praman repo (
 - Keep extracted fields, discard original documents unless the user consents to keep them.
 - Redact account numbers, Aadhaar, PAN and policy numbers before text leaves the process. One exception: the reply sent to her own WhatsApp number (also unredacted in the web chat).
 - "Delete everything" must actually delete, including from the console.
+- n8n Cloud is a third party: nothing is sent to it without the case's `contact_insurer` consent, letters are redacted first, and no phone number, session id or file name goes.
 
 ## Architecture
 - Anything the Distributor Console counts must write an event (`store.record_event`); the console reads events only.

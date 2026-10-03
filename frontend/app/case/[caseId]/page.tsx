@@ -20,6 +20,7 @@ export default function CasePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showEnglish, setShowEnglish] = useState(false);
+  const [sendConsent, setSendConsent] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleted, setDeleted] = useState(false);
 
@@ -51,6 +52,25 @@ export default function CasePage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function send(id: number) {
+    setBusy("Sending");
+    setActionError(null);
+    try {
+      await api(`/api/consent`, { method: "POST", json: { case_id: caseId, scope: "contact_insurer", granted: true } });
+      const body = await api<{ status: Draft["status"] }>(`/api/case/${caseId}/draft/${id}/send`, { method: "POST" });
+      setDraft((current) => (current ?? latest) && { ...(current ?? latest)!, status: body.status });
+    } catch (err) {
+      setActionError(errorText(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function checkSent() {
+    setDraft(null);
+    reload();
   }
 
   async function deleteEverything() {
@@ -193,8 +213,35 @@ export default function CasePage() {
                   {showEnglish || !latest.readback ? latest.text : latest.readback}
                 </pre>
                 {latest.status === "approved" ? (
+                  <div className="space-y-3">
+                    <p role="status" className="rounded-md bg-pine-wash px-4 py-3 font-semibold text-pine-dark">
+                      {approval ?? "Approved and ready to send"}
+                    </p>
+                    <label className="flex items-start gap-2 text-sm">
+                      <input type="checkbox" checked={sendConsent} onChange={(e) => setSendConsent(e.target.checked)} className="mt-1" />
+                      <span>I agree that Praman may send this letter to {latest.addressee} on my behalf.</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => send(latest.id)}
+                      disabled={busy !== null || !sendConsent}
+                      className="rounded-md bg-pine px-4 py-2.5 font-medium text-white hover:bg-pine-dark disabled:opacity-50"
+                    >
+                      Send the letter
+                    </button>
+                  </div>
+                ) : latest.status === "sending" ? (
+                  <div className="space-y-2">
+                    <p role="status" className="rounded-md bg-pine-wash px-4 py-3 font-semibold text-pine-dark">
+                      Handed to the delivery service. It shows as sent once it has gone out.
+                    </p>
+                    <button type="button" onClick={checkSent} className="text-sm text-pine underline">
+                      Check again
+                    </button>
+                  </div>
+                ) : latest.status === "sent" ? (
                   <p role="status" className="rounded-md bg-pine-wash px-4 py-3 font-semibold text-pine-dark">
-                    {approval ?? "Approved and ready to send"}
+                    Sent to {latest.addressee}. The reply window is on the clock above.
                   </p>
                 ) : (
                   <button

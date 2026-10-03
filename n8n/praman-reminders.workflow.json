@@ -1,0 +1,221 @@
+{
+  "name": "Praman: premium reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "praman-reminder",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Premium reminder from Praman",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        0
+      ],
+      "webhookId": "praman-reminder",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Praman secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const b = $input.first().json.body;\nreturn (b.remind_on || []).map(on => ({ json: { case_id: b.case_id, reminder_id: b.reminder_id, email: b.email, due_date: b.due_date, on, callback_base: b.callback_base } }));"
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "One item per date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -940,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ $json.on + 'T09:00:00+05:30' }}"
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Wait for the reminder date",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -680,
+        0
+      ],
+      "webhookId": "praman-reminder-wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('One item per date').item.json.callback_base + '/api/n8n/reminder-due' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $('One item per date').item.json.case_id, reminder_id: $('One item per date').item.json.reminder_id, on: $('One item per date').item.json.on } }}",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "Ask Praman if it is still wanted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -420,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Praman secret"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "r1",
+              "leftValue": "={{ $json.send }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Should it go out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "REPLACE-with-your-sender@example.com",
+        "toEmail": "={{ $('One item per date').item.json.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "Email the reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        100,
+        -100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "smtp": {
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "name": "Not needed any more",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        100,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Premium reminder from Praman": {
+      "main": [
+        [
+          {
+            "node": "One item per date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One item per date": {
+      "main": [
+        [
+          {
+            "node": "Wait for the reminder date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for the reminder date": {
+      "main": [
+        [
+          {
+            "node": "Ask Praman if it is still wanted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Praman if it is still wanted": {
+      "main": [
+        [
+          {
+            "node": "Should it go out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should it go out?": {
+      "main": [
+        [
+          {
+            "node": "Email the reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not needed any more",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

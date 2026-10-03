@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 import re
 import sys
 
-from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Request, UploadFile
+from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -22,7 +22,7 @@ from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
 from app.core import ladder_engine as le
 from app.core import ladders
-from app.services import documents, drafts, i18n, voice
+from app.services import documents, drafts, i18n, n8n, reminders, voice
 from app.services.documents import ExtractionFailed, UploadRejected
 
 sys.path.append(str(config.BACKEND_DIR.parent))  # the whatsapp/ package sits beside backend/
@@ -582,5 +582,94 @@ def approve_draft(case_id: str, draft_id: int):
         return drafts.approve(conn, case_id, draft_id)
     except LookupError:
         return _bad("No such draft on this case.", 404)
+    finally:
+        conn.close()
+
+
+# --- Delivery and follow-up through n8n ---------------------------------------
+# She sends an approved letter; the n8n workflow delivers it and calls back. The callbacks carry
+# the shared secret (x-praman-secret) and are refused without it.
+
+
+@app.post("/api/case/{case_id}/draft/{draft_id}/send")
+def send_draft(case_id: str, draft_id: int):
+    """Hand an approved letter to the delivery workflow. It is sent only once the workflow confirms."""
+    conn = store.connect()
+    try:
+        return n8n.dispatch(conn, case_id, draft_id)
+    except LookupError:
+        return _bad("No such draft on this case.", 404)
+    except n8n.NotReady as exc:
+        return _bad(str(exc), 409)
+    except n8n.NotConfigured as exc:
+        return _bad(str(exc), 503)
+    except n8n.DeliveryUnavailable as exc:
+        return _bad(str(exc), 502)
+    finally:
+        conn.close()
+
+
+def _n8n_callback(secret: str | None, body: dict, run):
+    if not n8n.authentic(secret):
+        return _bad("Not allowed.", 401)
+    case_id, draft_id = body.get("case_id"), body.get("draft_id")
+    if not isinstance(case_id, str) or not isinstance(draft_id, int):
+        return _bad("Send case_id and draft_id.")
+    conn = store.connect()
+    try:
+        return run(conn, case_id, draft_id)
+    except LookupError:
+        return _bad("No such draft on this case.", 404)
+    finally:
+        conn.close()
+
+
+@app.post("/api/n8n/delivered")
+def n8n_delivered(body: dict = Body(...), x_praman_secret: str | None = Header(None)):
+    """The workflow reports the letter went out; the response carries the clock to wait on."""
+    channel = str(body.get("channel") or "unknown")
+    return _n8n_callback(x_praman_secret, body, lambda conn, case_id, draft_id: n8n.delivered(conn, case_id, draft_id, channel))
+
+
+@app.post("/api/n8n/failed")
+def n8n_failed(body: dict = Body(...), x_praman_secret: str | None = Header(None)):
+    """The workflow gave up after its retries."""
+    reason = str(body.get("reason") or "unknown")
+    return _n8n_callback(x_praman_secret, body, lambda conn, case_id, draft_id: n8n.failed(conn, case_id, draft_id, reason))
+
+
+def _nudge(case: dict, text: str) -> None:
+    """Tell her on WhatsApp, in her language. A browser session has no channel to push to."""
+    user = case.get("channel_user") or ""
+    if user.startswith("whatsapp:+"):
+        whatsapp_meta.send_text(user.removeprefix("whatsapp:+"), i18n.translate(text, case.get("language") or config.DEFAULT_LANGUAGE))
+
+
+@app.post("/api/n8n/clock-due")
+def n8n_clock_due(body: dict = Body(...), x_praman_secret: str | None = Header(None)):
+    """The workflow woke at the end of a response window: stop, wait, escalate, or ask a person."""
+    if not n8n.authentic(x_praman_secret):
+        return _bad("Not allowed.", 401)
+    case_id = body.get("case_id")
+    if not isinstance(case_id, str):
+        return _bad("Send case_id.")
+    conn = store.connect()
+    try:
+        return n8n.clock_due(conn, case_id, notify=_nudge)
+    finally:
+        conn.close()
+
+
+@app.post("/api/n8n/reminder-due")
+def n8n_reminder_due(body: dict = Body(...), x_praman_secret: str | None = Header(None)):
+    """The workflow woke for one premium-reminder date: send it only if it is still wanted."""
+    if not n8n.authentic(x_praman_secret):
+        return _bad("Not allowed.", 401)
+    case_id, reminder_id, on = body.get("case_id"), body.get("reminder_id"), body.get("on")
+    if not (isinstance(case_id, str) and isinstance(reminder_id, str) and isinstance(on, str)):
+        return _bad("Send case_id, reminder_id and on.")
+    conn = store.connect()
+    try:
+        return reminders.due(conn, case_id, reminder_id, on)
     finally:
         conn.close()

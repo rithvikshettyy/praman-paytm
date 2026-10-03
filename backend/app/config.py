@@ -133,6 +133,24 @@ DISTRIBUTOR_LEGAL_NAME = os.environ.get("DISTRIBUTOR_LEGAL_NAME", "").strip()
 # How the Distributor Console's headline names the distributor: "Of N cases, X needed <this>."
 DISTRIBUTOR_SHORT_NAME = os.environ.get("DISTRIBUTOR_SHORT_NAME", "").strip() or "the distributor"
 
+# --- n8n (delivery and follow-up workflows) ----------------------------------
+# Praman decides what goes to whom; n8n handles how and when it is delivered. Both stay blank
+# until a workflow exists: with no URL, sending is refused and nothing leaves the process.
+N8N_DISPATCH_URL = os.environ.get("N8N_DISPATCH_URL", "").strip()
+# Shared secret in the x-praman-secret header, both ways. Callbacks are refused without it.
+N8N_SECRET = os.environ.get("N8N_SECRET", "").strip()
+# Where n8n reaches this API (a tunnel in development). Sent to the workflow as callback_base.
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+N8N_TIMEOUT_SECONDS = _int("N8N_TIMEOUT_SECONDS", 15)
+# Demo only: pretend this many days have passed when n8n asks whether a response window ended, so a
+# live demo does not wait two weeks. 0 (the default) is the real calendar.
+N8N_DEMO_DAYS_AHEAD = _int("N8N_DEMO_DAYS_AHEAD", 0)
+# Premium reminders: the n8n workflow that waits for each date, the address it emails (until the chat
+# asks for one; blank = reminders off), and how many days before the due date to remind.
+N8N_REMINDER_URL = os.environ.get("N8N_REMINDER_URL", "").strip()
+REMINDER_EMAIL = os.environ.get("REMINDER_EMAIL", "").strip()
+REMINDER_DAYS_BEFORE = tuple(sorted({int(d) for d in os.environ.get("REMINDER_DAYS_BEFORE", "7,1").split(",") if d.strip().isdigit()}, reverse=True))
+
 # --- App --------------------------------------------------------------------
 CORS_ORIGINS = [
     o.strip()

@@ -120,6 +120,10 @@ def metrics(conn: sqlite3.Connection) -> dict[str, Any]:
             "cases_marked_resolved": _count(conn, "SELECT COUNT(*) FROM console_cases WHERE agent_status = 'resolved'"),
             # cases where she asked for a person after an answer
             "asked_for_a_person": _count(conn, "SELECT COUNT(DISTINCT case_id) FROM events WHERE kind = 'agent_requested'"),
+            # letters the delivery workflow confirmed it sent, and response windows that ended with no reply
+            "letters_sent": _count(conn, "SELECT COUNT(*) FROM events WHERE kind = 'letter_delivered'"),
+            "follow_ups_triggered": _count(
+                conn, "SELECT COUNT(*) FROM events WHERE kind = 'clock_due' AND json_extract(detail, '$.action') != 'stop'"),
             # cases where the paper checks caught something an insurer would query, before filing
             "insurer_queries_caught": _count(
                 conn,

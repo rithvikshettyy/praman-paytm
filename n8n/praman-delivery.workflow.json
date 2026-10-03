@@ -1,0 +1,326 @@
+{
+  "name": "Praman: deliver a letter and watch the clock",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "praman-dispatch",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Letter from Praman",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "webhookId": "praman-dispatch",
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE", "name": "Praman secret" } }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.body.addressee }}",
+                    "rightValue": "Example General",
+                    "operator": { "type": "string", "operation": "contains" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Email"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.body.addressee }}",
+                    "rightValue": "Example Portal",
+                    "operator": { "type": "string", "operation": "contains" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Portal"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra", "renameFallbackOutput": "No adapter yet" }
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Which insurer adapter?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "praman-demo@example.com",
+        "toEmail": "REPLACE-with-a-test-inbox@example.com",
+        "subject": "={{ 'Request to review a decision on my case ' + $('Letter from Praman').item.json.body.case_id }}",
+        "emailFormat": "text",
+        "text": "={{ $('Letter from Praman').item.json.body.letter }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Send by email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [540, 120],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput",
+      "credentials": { "smtp": { "id": "REPLACE", "name": "SMTP for demo letters" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE-with-the-portal-test-url",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_reference: $('Letter from Praman').item.json.body.case_id, to: $('Letter from Praman').item.json.body.addressee, message: $('Letter from Praman').item.json.body.letter } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Send to insurer portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [540, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Letter from Praman').item.json.body.callback_base + '/api/n8n/delivered' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $('Letter from Praman').item.json.body.case_id, draft_id: $('Letter from Praman').item.json.body.draft_id, channel: 'email' } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Tell Praman: sent by email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 120],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE", "name": "Praman secret" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Letter from Praman').item.json.body.callback_base + '/api/n8n/delivered' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $('Letter from Praman').item.json.body.case_id, draft_id: $('Letter from Praman').item.json.body.draft_id, channel: 'portal' } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Tell Praman: sent to portal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE", "name": "Praman secret" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Letter from Praman').item.json.body.callback_base + '/api/n8n/failed' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $('Letter from Praman').item.json.body.case_id, draft_id: $('Letter from Praman').item.json.body.draft_id, reason: $json.error ? $json.error.message : 'no delivery adapter for this insurer yet' } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Tell Praman: could not send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 520],
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE", "name": "Praman secret" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $json.clock ? $json.clock.respond_by : '' }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Is there a deadline?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "resume": "specificTime",
+        "dateTime": "={{ DateTime.fromISO($json.clock ? $json.clock.respond_by : $json.respond_by).plus({ days: 1 }).toFormat('yyyy-MM-dd') + 'T09:00:00+05:30' }}"
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Wait for the response window",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1360, 120],
+      "webhookId": "praman-window"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Letter from Praman').item.json.body.callback_base + '/api/n8n/clock-due' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { case_id: $('Letter from Praman').item.json.body.case_id } }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-00000000000a",
+      "name": "Ask Praman what is due",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1620, 120],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": { "httpHeaderAuth": { "id": "REPLACE", "name": "Praman secret" } }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  { "id": "c4", "leftValue": "={{ $json.action }}", "rightValue": "escalate", "operator": { "type": "string", "operation": "equals" } },
+                  { "id": "c5", "leftValue": "={{ $json.action }}", "rightValue": "ask_agent", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "Reply overdue"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+                "conditions": [
+                  { "id": "c6", "leftValue": "={{ $json.action }}", "rightValue": "wait", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Not due yet"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra", "renameFallbackOutput": "Stop" }
+      },
+      "id": "a1000000-0000-4000-8000-00000000000b",
+      "name": "What did Praman say?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [1880, 120]
+    },
+    {
+      "parameters": {
+        "fromEmail": "praman-demo@example.com",
+        "toEmail": "REPLACE-with-the-agent-inbox@example.com",
+        "subject": "={{ 'Reply overdue: case ' + $json.case_id }}",
+        "emailFormat": "text",
+        "text": "={{ $json.message + '\\n\\nNext step on the ladder: ' + ($json.next_label || 'a person decides') + '\\nBrief (no phone number, no file names): ' + $('Letter from Praman').item.json.body.callback_base + $json.brief_path }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-00000000000c",
+      "name": "Alert the agent",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [2160, 40],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": { "smtp": { "id": "REPLACE", "name": "SMTP for demo letters" } }
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-00000000000d",
+      "name": "Nothing more to do",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2160, 260]
+    }
+  ],
+  "connections": {
+    "Letter from Praman": { "main": [[{ "node": "Which insurer adapter?", "type": "main", "index": 0 }]] },
+    "Which insurer adapter?": {
+      "main": [
+        [{ "node": "Send by email", "type": "main", "index": 0 }],
+        [{ "node": "Send to insurer portal", "type": "main", "index": 0 }],
+        [{ "node": "Tell Praman: could not send", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send by email": {
+      "main": [
+        [{ "node": "Tell Praman: sent by email", "type": "main", "index": 0 }],
+        [{ "node": "Tell Praman: could not send", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send to insurer portal": {
+      "main": [
+        [{ "node": "Tell Praman: sent to portal", "type": "main", "index": 0 }],
+        [{ "node": "Tell Praman: could not send", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tell Praman: sent by email": { "main": [[{ "node": "Is there a deadline?", "type": "main", "index": 0 }]] },
+    "Tell Praman: sent to portal": { "main": [[{ "node": "Is there a deadline?", "type": "main", "index": 0 }]] },
+    "Is there a deadline?": {
+      "main": [
+        [{ "node": "Wait for the response window", "type": "main", "index": 0 }],
+        [{ "node": "Nothing more to do", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait for the response window": { "main": [[{ "node": "Ask Praman what is due", "type": "main", "index": 0 }]] },
+    "Ask Praman what is due": { "main": [[{ "node": "What did Praman say?", "type": "main", "index": 0 }]] },
+    "What did Praman say?": {
+      "main": [
+        [{ "node": "Alert the agent", "type": "main", "index": 0 }],
+        [{ "node": "Wait for the response window", "type": "main", "index": 0 }],
+        [{ "node": "Nothing more to do", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

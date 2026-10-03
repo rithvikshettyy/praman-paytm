@@ -15,6 +15,9 @@ Order of play for one message:
                                      pre_decision -> ask for the document; smalltalk -> the greeting
   6. anything else                -> the checklist status
 
+A premium reminder is a short conversation of its own (``_reminder_turn``), tried before step 5 once she
+asks for one: the due date (offered from her document, or asked), her yes, then it is handed to n8n.
+
 The web chat and WhatsApp also read what she sends (``explain_documents``): each document is
 read in full, summarised with citations, and held in memory (rag/mine.py) so her
 questions are answered from it first. Without it, photos fill the checklist.
@@ -33,7 +36,7 @@ from typing import Any, Callable, Mapping
 from app import cases, config, store
 from app.clients import sarvam
 from app.core import agent, ladders
-from app.services import documents, i18n
+from app.services import documents, i18n, n8n, reminders
 from app.services.redact import redact
 
 logger = logging.getLogger(__name__)
@@ -231,6 +234,94 @@ def _answer_text(conn: sqlite3.Connection, case: dict, text: str, language: str,
         return (Message(PRE_DECISION),)
     return None
 
+# --- Premium reminders ---------------------------------------------------------------
+REMINDER_OFF = "Reminders are not set up on this server yet, so I cannot email you one."
+REMINDER_ASK_DATE = (
+    "I can email you before your premium is due. I could not find the due date in your documents. "
+    "What date is it due? For example 14/03/2027."
+)
+REMINDER_NO_DATE = "I did not catch a date. Send it like 14/03/2027 or 14 March 2027, or say cancel."
+REMINDER_DROPPED = "Okay, I have not set a reminder."
+REMINDER_STOPPED = "Done. I will not email you any more premium reminders."
+REMINDER_NONE = "You have no premium reminders set."
+REMINDER_PAST = "That date is too close or has passed, so there is nothing to remind you about. Send a later date, or say cancel."
+REMINDER_FAILED = "I could not set the reminder just now. Please try again in a little while."
+REMINDER_QUESTION = "On what date is the next premium due? Answer with the date only."
+_REMIND = re.compile(r"\bremind(er|ers)?\b|\bremember\b.*\bpremium\b|याद\s*दिल|आठवण")
+_STOP_REMIND = re.compile(r"\b(stop|cancel|no more|do not|don t|dont)\b.*\bremind|\bremind\w*\b.*\b(stop|cancel)\b|reminders? (off|stop)")
+# What she is in the middle of, by user: {"stage": "date" | "confirm", "due": date}. In memory only.
+_REMINDER_FLOW: dict[str, dict] = {}
+
+
+def _confirm_text(due) -> str:
+    days = ", ".join(str(d) for d in config.REMINDER_DAYS_BEFORE)
+    return (
+        f"Your premium is due on {due.strftime('%d %b %Y')}. Is that right? Reply YES and I will email "
+        f"{reminders.masked_email()} {days} days before. To do that I send your email address and the dates to "
+        "our scheduling service (n8n); no policy details go with them. Send a different date to change it, "
+        "or say cancel. You can say \"stop reminders\" any time."
+    )
+
+
+def _due_date_in_hers(case_id: str):
+    """The premium due date her own document seems to give, to offer her. Never trusted: she confirms it."""
+    from app.rag import mine
+
+    if not mine.has(case_id):
+        return None
+    found = mine.collection(case_id, first_chunks=None)
+    try:
+        result = _ask(REMINDER_QUESTION, language="en-IN", question_language="en-IN",
+                      insurer=mine.YOUR_DOCUMENT, product=mine.PRODUCT, collection=found, k=mine.TOP_K)
+    except Exception as exc:  # no answer is fine: she is asked for the date instead
+        logger.info("Could not look up a premium due date: %s", exc)
+        return None
+    finally:
+        mine.drop(found)
+    return reminders.parse_date(without_citations(result.text_en)) if result.status == "answered" else None
+
+
+def _reminder_turn(conn: sqlite3.Connection, user: str, case: dict, text: str, said: str) -> tuple[Message, ...] | None:
+    """One turn of the premium-reminder conversation; None when this message is not part of it."""
+    case_id = case["id"]
+    flow = _REMINDER_FLOW.get(user)
+    if flow is None:
+        if _STOP_REMIND.search(said):
+            return (Message(REMINDER_STOPPED if reminders.cancel(conn, case_id) else REMINDER_NONE),)
+        if not _REMIND.search(said):
+            return None
+        if not reminders.is_set_up():
+            return (Message(REMINDER_OFF),)
+        due = _due_date_in_hers(case_id)
+        if due is None:
+            _REMINDER_FLOW[user] = {"stage": "date"}
+            return (Message(REMINDER_ASK_DATE),)
+        _REMINDER_FLOW[user] = {"stage": "confirm", "due": due}
+        return (Message(_confirm_text(due)),)
+
+    if said in _NO or said in {"cancel", "stop", "never mind", "nevermind"}:
+        _REMINDER_FLOW.pop(user, None)
+        return (Message(REMINDER_DROPPED),)
+    given = reminders.parse_date(text)
+    if flow["stage"] == "confirm" and said in _YES:
+        try:
+            store.record_consent(conn, case_id, reminders.CONSENT, True)
+            done = reminders.schedule(conn, case_id, flow["due"])
+        except n8n.NotReady:
+            _REMINDER_FLOW[user] = {"stage": "date"}
+            return (Message(REMINDER_PAST),)
+        except (n8n.NotConfigured, n8n.DeliveryUnavailable):
+            store.record_consent(conn, case_id, reminders.CONSENT, False)
+            return (Message(REMINDER_FAILED),)
+        _REMINDER_FLOW.pop(user, None)
+        days = ", ".join(d[8:10] + "/" + d[5:7] for d in done["remind_on"])
+        return (Message(f"Done. I will email {reminders.masked_email()} on {days} (day/month), before your premium "
+                        f"is due on {flow['due'].strftime('%d %b %Y')}. Say \"stop reminders\" any time."),)
+    if given is not None:
+        _REMINDER_FLOW[user] = {"stage": "confirm", "due": given}
+        return (Message(_confirm_text(given)),)
+    return (Message(_confirm_text(flow["due"]) if flow["stage"] == "confirm" else REMINDER_NO_DATE),)
+
 
 # --- Her own documents (web chat) ---------------------------------------------------
 
@@ -413,6 +504,7 @@ def respond(
             forget_documents(existing["id"])
         with _AWAITING_LOCK:
             _AWAITING_CONSENT.pop(user, None)
+        _REMINDER_FLOW.pop(user, None)
         return Reply(None, reply_language, (Message(DELETED),))
 
     case = store.case_for_user(conn, user)
@@ -440,6 +532,11 @@ def respond(
         with _AWAITING_LOCK:
             _AWAITING_CONSENT.setdefault(user, []).extend(photos)
         return Reply(case_id, reply_language, (Message(CONSENT_PROMPT),))
+
+    if text and not photos:
+        turn = _reminder_turn(conn, user, case, text, said)
+        if turn:
+            return Reply(case_id, reply_language, turn)
 
     messages: list[Message] = []
     pending = store.pending_document(conn, case_id, cases.CLAIM_DOC)

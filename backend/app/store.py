@@ -29,6 +29,7 @@ CONSENT_SCOPES = (
     "read_kfs",
     "store_fields",
     "contact_insurer",
+    "premium_reminders",  # send her email address and one date to the scheduling service, to remind her
     "keep_original",  # keep the uploaded file itself, not just the fields read from it
 )
 
@@ -70,7 +71,7 @@ CREATE TABLE IF NOT EXISTS drafts (
     addressee   TEXT NOT NULL,
     text        TEXT NOT NULL,
     unverified  INTEGER NOT NULL DEFAULT 0,
-    status      TEXT NOT NULL DEFAULT 'drafted',   -- drafted | approved (approved and ready to send; nothing is sent)
+    status      TEXT NOT NULL DEFAULT 'drafted',   -- drafted | approved (ready to send) | sending (handed to n8n) | sent (n8n confirmed delivery)
     created_at  TEXT NOT NULL,
     approved_at TEXT
 );
@@ -105,6 +106,13 @@ EVENT_KINDS = (
     "agent_requested",  # detail: reason (not_solved|not_found), answer_id. She asked for a person after an answer
     "grievance_reported",  # detail: text (redacted), grievance_class, product. What she wrote when something went wrong
     "case_status",  # detail: status (resolved|pending). An agent's mark on the console; the latest one stands
+    "letter_dispatched",  # detail: draft_id, kind. Handed to the n8n delivery workflow; not yet delivered
+    "letter_delivered",  # detail: draft_id, channel. n8n confirmed the letter went out (email, portal, api)
+    "delivery_failed",  # detail: draft_id, reason. n8n gave up after its retries
+    "clock_due",  # detail: step, action (escalate|ask_agent|stop), next_step. The response window ended
+    "reminder_scheduled",  # detail: reminder_id, due_date, remind_on. Handed to the n8n reminder workflow; no email kept
+    "reminder_sent",  # detail: reminder_id, on. The workflow asked, and the reminder was allowed to go out
+    "reminder_cancelled",  # detail: reason. She asked to stop; any waiting reminder is refused when it wakes
 )
 CASE_STATUSES = ("pending", "resolved")
 
@@ -479,3 +487,11 @@ def approve_draft(conn: sqlite3.Connection, case_id: str, draft_id: int) -> dict
     )
     conn.commit()
     return get_draft(conn, case_id, draft_id) if cursor.rowcount == 1 else None
+
+
+def set_draft_status(conn: sqlite3.Connection, case_id: str, draft_id: int, status: str) -> None:
+    """Move an approved draft along: sending (handed to n8n), sent (n8n confirmed), or back to approved."""
+    if status not in ("approved", "sending", "sent"):
+        raise ValueError(f"unknown draft status {status!r}")
+    conn.execute("UPDATE drafts SET status = ? WHERE id = ? AND case_id = ?", (status, draft_id, case_id))
+    conn.commit()
