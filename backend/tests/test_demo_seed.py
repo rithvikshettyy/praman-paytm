@@ -13,7 +13,6 @@ ADMISSION, MORATORIUM, DOUBLE_DEBIT = "demo-admission", "demo-moratorium", "demo
 
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(config, "DISTRIBUTOR_SHORT_NAME", "Paytm")
     connection = store.connect()

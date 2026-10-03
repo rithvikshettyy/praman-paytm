@@ -82,7 +82,7 @@ client = TestClient(app)
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
+    pass
 
 
 def test_readiness_reply_is_badged(api):

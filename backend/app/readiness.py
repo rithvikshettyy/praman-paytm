@@ -9,7 +9,6 @@ nothing is ever assumed.
 from __future__ import annotations
 
 import dataclasses
-import sqlite3
 from datetime import date
 from functools import lru_cache
 from typing import Any
@@ -17,6 +16,7 @@ from typing import Any
 import yaml
 
 from app import cases, config, store
+from app.store import Store
 from app.core import ladder_engine as le
 from app.core import ladders
 from app.services import documents
@@ -191,7 +191,7 @@ def papers_view(result: le.PapersCheck) -> dict[str, Any]:
 
 
 def check_papers(
-    conn: sqlite3.Connection | None, case_id: str | None, policy: dict[str, Any] | None, bill: dict[str, Any] | None
+    conn: Store | None, case_id: str | None, policy: dict[str, Any] | None, bill: dict[str, Any] | None
 ) -> dict[str, Any]:
     """Run the paper checks on her trusted values; with a case, log what was caught for the console."""
     result = le.check_papers(papers_from(policy, bill), tuple(paper_words()["non_payable"]["items"]))

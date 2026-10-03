@@ -169,7 +169,6 @@ def test_low_confidence_values_never_reach_the_checks():
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     return TestClient(app)
 
@@ -189,9 +188,9 @@ def test_a_caught_query_is_counted_on_the_console_without_names(client):
     client.post("/api/readiness/documents", data={"case_id": case_id, "demo": "true"})
     conn = store.connect()
     try:
-        [event] = [e for e in conn.execute("SELECT detail FROM events WHERE kind = 'papers_checked'")]
-        assert json.loads(event["detail"]) == {"fix": ["name_mismatch"], "heads_up": ["non_payable_items"]}
-        assert "Patel" not in event["detail"]  # no names or amounts in the audit trail
+        [event] = store.case_events(conn, case_id, "papers_checked")
+        assert event["detail"] == {"fix": ["name_mismatch"], "heads_up": ["non_payable_items"]}
+        assert "Patel" not in json.dumps(event["detail"])  # no names or amounts in the audit trail
         assert console.metrics(conn)["counters"]["insurer_queries_caught"] == 1
     finally:
         conn.close()

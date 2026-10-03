@@ -11,11 +11,11 @@ were masked when they were recorded (app/services/redact.py) and go when she del
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import date
 from typing import Any
 
 from app import cases, config, store
+from app.store import Store
 from app.core import ladders
 from app.services import i18n
 
@@ -90,7 +90,7 @@ def _humanise(value: str | None) -> str | None:
     return value.split("/")[-1].replace("_", " ").capitalize() if value else None
 
 
-def brief(conn: sqlite3.Connection, case_id: str) -> dict[str, Any] | None:
+def brief(conn: Store, case_id: str) -> dict[str, Any] | None:
     """The agent's brief for a case, or None if there is no such case."""
     detail = cases.case_detail(conn, case_id)
     if detail is None:
@@ -154,7 +154,7 @@ def brief(conn: sqlite3.Connection, case_id: str) -> dict[str, Any] | None:
     # Documents received: kinds and checklist slots only, never names or text.
     checklist = cases.load_checklist()
     state = cases.checklist_state(conn, case_id, checklist)
-    kinds = sorted({row["doc_type"] for row in conn.execute("SELECT doc_type FROM documents WHERE case_id = ?", (case_id,))} - {cases.CLAIM_DOC})
+    kinds = sorted(store.document_types(conn, case_id) - {cases.CLAIM_DOC})
     documents = {
         # a policy sent in the chat is read for her answers and not kept, so only this note remains of it
         "shared_in_chat": any(e["detail"].get("source") == "her_document" for e in answers),

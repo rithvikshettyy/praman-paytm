@@ -205,11 +205,11 @@ def _journey(conn, case_id: str) -> str | None:
     return found["detail"].get("journey") if found else None
 
 
-def _show_menu(user: str, language: str) -> None:
-    deliver(user, language, Message(MENU_PROMPT, buttons=MENU_BUTTONS))
+def _show_menu(user: str, language: str, voice: bool = False) -> None:
+    deliver(user, language, Message(MENU_PROMPT, buttons=MENU_BUTTONS), voice=voice)
 
 
-def _onboard(inbound: meta.Inbound, text: str) -> bool:
+def _onboard(inbound: meta.Inbound, text: str, voice: bool = False) -> bool:
     """The first messages, until she has chosen a language, and the menu keywords and buttons after.
     True when the message was answered here and the conversation should not see it."""
     user = inbound.user
@@ -231,8 +231,8 @@ def _onboard(inbound: meta.Inbound, text: str) -> bool:
                 _send_language_menu(user)
                 return True
             store.set_language(conn, case["id"], picked)
-            deliver(user, picked, Message(WELCOME))
-            _show_menu(user, picked)
+            deliver(user, picked, Message(WELCOME), voice=voice)
+            _show_menu(user, picked, voice)
             return True
         said = conversation._normalised(text)
         if said in _LANGUAGE_WORDS:
@@ -240,12 +240,12 @@ def _onboard(inbound: meta.Inbound, text: str) -> bool:
             _send_language_menu(user)
             return True
         if said in _MENU_WORDS:
-            _show_menu(user, language)
+            _show_menu(user, language, voice)
             return True
         choice = text.removeprefix("journey:") if text.startswith("journey:") else None
         if choice in JOURNEY_OPENINGS:
             store.record_event(conn, case["id"], "journey_chosen", {"journey": choice})
-            deliver(user, language, Message(JOURNEY_OPENINGS[choice]))
+            deliver(user, language, Message(JOURNEY_OPENINGS[choice]), voice=voice)
             return True
         return False
     finally:
@@ -296,7 +296,7 @@ def _handle(inbound: meta.Inbound) -> None:
         text, spoke = (heard.get("transcript") or "").strip(), True
         if not text:
             return _say(user, COULD_NOT_HEAR)
-    if not conversation.is_delete(text) and _onboard(inbound, text):  # "delete everything" works at any step
+    if not conversation.is_delete(text) and _onboard(inbound, text, spoke):  # "delete everything" works at any step
         return
     if inbound.kind in ("image", "document"):
         attachment = _attachment(inbound)
@@ -316,3 +316,5 @@ def _handle(inbound: meta.Inbound) -> None:
         conn.close()
     for message in reply.messages:
         deliver(user, reply.language, message, voice=spoke)
+    if conversation.is_reset(text):  # everything is erased: start again at the language list
+        _send_language_menu(user)

@@ -1,7 +1,6 @@
 """PRD-PAYTM N5: who owes her an answer."""
 
 import ast
-import sqlite3
 from datetime import date
 from pathlib import Path
 
@@ -203,7 +202,7 @@ def test_router_is_pure():
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DISTRIBUTOR_LEGAL_NAME", DISTRIBUTOR_NAME)
-    connection = store.connect(tmp_path / "praman.db")
+    connection = store.connect()
     store.ensure_case(connection, "c1")
     yield connection
     connection.close()
@@ -244,21 +243,6 @@ def test_an_unrouted_case_stores_the_product_and_clears_the_respondent(conn):
     assert saved["product"] == "health_policy"
     assert saved["respondent"] is None
     assert saved["distributor_owned"] is None
-
-
-def test_c7_migration_adds_routing_columns_to_an_older_cases_table(tmp_path):
-    path = tmp_path / "old.db"
-    old = sqlite3.connect(path)
-    old.execute("CREATE TABLE cases (id TEXT PRIMARY KEY, channel_user TEXT UNIQUE, language TEXT, created_at TEXT NOT NULL)")
-    old.execute("INSERT INTO cases VALUES ('c0', NULL, 'mr-IN', '2026-09-30')")
-    old.commit()
-    old.close()
-
-    conn = store.connect(path)
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(cases)")}
-    assert {"product", "respondent", "respondent_name", "distributor_owned"} <= columns
-    assert store.get_case(conn, "c0")["language"] == "mr-IN"
-    conn.close()
 
 
 @pytest.mark.parametrize("product", ["life_policy", "travel_policy", "home_policy", "other_insurance"])

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import re
-import sqlite3
 import typing
 from dataclasses import dataclass
 from datetime import date
@@ -30,6 +29,7 @@ from typing import Any, Callable
 import yaml
 
 from app import config, store
+from app.store import Store
 from app.clients import sarvam
 from app.core import ladder_engine as le
 from app.core import ladders, routing
@@ -138,7 +138,7 @@ class Attached:
 
 
 def attach(
-    conn: sqlite3.Connection,
+    conn: Store,
     case_id: str,
     data: bytes,
     filename: str,
@@ -187,7 +187,7 @@ def _ocr(read_text, data: bytes, filename: str, mime: str) -> str | None:
 
 
 def choose_slot(
-    conn: sqlite3.Connection, case_id: str, document_id: int, slot: str, checklist: Checklist | None = None
+    conn: Store, case_id: str, document_id: int, slot: str, checklist: Checklist | None = None
 ) -> None:
     """Place a waiting photo in the slot she picked."""
     (checklist or load_checklist()).require(slot)
@@ -214,7 +214,7 @@ class ChecklistState:
         return len(self.filled) + len(self.missing)
 
 
-def checklist_state(conn: sqlite3.Connection, case_id: str, checklist: Checklist | None = None) -> ChecklistState:
+def checklist_state(conn: Store, case_id: str, checklist: Checklist | None = None) -> ChecklistState:
     checklist = checklist or load_checklist()
     have = store.filled_slots(conn, case_id)
     return ChecklistState(
@@ -278,7 +278,7 @@ _NAME_FIELDS = (
 )
 
 
-def respondent_names(conn: sqlite3.Connection, case_id: str) -> dict[str, str]:
+def respondent_names(conn: Store, case_id: str) -> dict[str, str]:
     """Legal names known for this case: read confidently from her documents, or configured."""
     names: dict[str, str] = {}
     for kind, doc_types, field_name in _NAME_FIELDS:
@@ -293,7 +293,7 @@ def respondent_names(conn: sqlite3.Connection, case_id: str) -> dict[str, str]:
 
 
 def route_case(
-    conn: sqlite3.Connection, case_id: str, product: str | None, grievance_class: str | None
+    conn: Store, case_id: str, product: str | None, grievance_class: str | None
 ) -> routing.Route | None:
     """Work out who owes this case an answer, record it on the case, and log it."""
     found = routing.route(product, grievance_class, names=respondent_names(conn, case_id))
@@ -317,7 +317,7 @@ def route_case(
 
 
 def start_case_clock(
-    conn: sqlite3.Connection, case_id: str, started_on: date, step: str | None = None
+    conn: Store, case_id: str, started_on: date, step: str | None = None
 ) -> routing.Clock:
     """Start the clock on this case's own respondent ladder, and log it."""
     routed = store.latest_event(conn, case_id, "case_routed")
@@ -368,7 +368,7 @@ def facts_to_json(facts: le.Facts) -> dict[str, Any]:
     return dict(sorted(out.items()))
 
 
-def case_detail(conn: sqlite3.Connection, case_id: str) -> dict[str, Any] | None:
+def case_detail(conn: Store, case_id: str) -> dict[str, Any] | None:
     """Everything the case page shows, read from the case and its latest events."""
     case = store.get_case(conn, case_id)
     if case is None:
@@ -413,7 +413,7 @@ def case_detail(conn: sqlite3.Connection, case_id: str) -> dict[str, Any] | None
 
 
 def check_readiness(
-    conn: sqlite3.Connection, case_id: str, facts: le.Facts, ladder_name: str = "insurance_health_claim"
+    conn: Store, case_id: str, facts: le.Facts, ladder_name: str = "insurance_health_claim"
 ) -> le.Verdict:
     """Run the readiness ladder for a case and log what it found."""
     ladder = ladders.load(ladder_name)

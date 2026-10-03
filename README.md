@@ -123,7 +123,7 @@ flowchart LR
 | C3, N2 | Extraction for policy, bill, letter and loan key fact statement; detecting the document type; confidence gate | `backend/app/services/documents.py` |
 | C5 | `verified_by` everywhere, the verification report, badges in every reply | `backend/scripts/verify_report.py` |
 | C6 | "Approved and ready to send", never "filed"; enforced by a test | `backend/tests/test_wording.py` |
-| C7 | SQLite store: cases, documents, consents, events, drafts | `backend/app/store.py` |
+| C7 | MongoDB store: cases, documents, consents, events, drafts, chat transcript, document text | `backend/app/store.py` |
 | N1 | Health-claim readiness ladder: waiting period, exclusion, lapse, room cap, documents, PED cap, moratorium | `backend/data/ladders/insurance_health_claim.yaml` |
 | N3 | Document checklist over WhatsApp: photos tick slots, with a numbered-list fallback | `backend/app/cases.py`, `whatsapp/channel.py` |
 | N5 | Respondent router with per-respondent ladders and clocks | `backend/app/core/routing.py` |
@@ -140,7 +140,7 @@ Not built yet, and presented as next steps:
 
 ### Stack
 
-- **Backend:** Python 3.11 and FastAPI, with SQLite for storage.
+- **Backend:** Python 3.11 and FastAPI, with MongoDB for storage (local: `docker run -d -p 27017:27017 mongo:7`, or an Atlas `MONGO_URI` in `backend/.env`).
 - **AI:** Sarvam for everything:
   - chat and classification;
   - Doc AI to read documents;

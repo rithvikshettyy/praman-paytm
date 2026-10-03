@@ -24,15 +24,15 @@ from __future__ import annotations
 
 import logging
 import re
-import sqlite3
 import threading
 import unicodedata
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping
 
 from app import cases, config, store
+from app.store import Store
 from app.clients import sarvam
-from app.core import agent, ladders
+from app.core import agent, ladders, routing
 from app.services import documents, i18n
 from app.services.redact import redact
 
@@ -90,7 +90,7 @@ SUMMARY_QUESTION = (
 WELCOME = (
     "Hello, I am Praman. I read your insurance papers and answer from them and from the rules, in your "
     "language. I never guess: if I cannot find it, I say so. Say \"delete everything\" at any time and "
-    "I erase your case."
+    "I erase your case, or \"reset\" to erase it and start again."
 )
 MENU_PROMPT = "What would you like to do?"
 MENU_BUTTONS = (("journey:find", "Find a policy"), ("journey:check", "Check my policy"),
@@ -122,6 +122,9 @@ _YES = {"yes", "y", "ok", "okay", "agree", "i agree", "haan", "han", "ha", "ho",
 _NO = {"no", "n", "nahi", "nahin", "nako", "नाही", "नहीं", "नको", "मत"}
 _DELETE = {"delete everything", "delete all", "delete my data", "सगळं हटवा", "सगळे हटवा", "सर्व हटवा",
            "सब हटाओ", "सब हटा दो", "सब डिलीट करो", "सब मिटा दो"}
+# "Start again": the same erasing as "delete everything"; the WhatsApp channel then restarts onboarding.
+_RESET = {"reset", "reset everything", "reset chat", "restart", "start over", "रीसेट", "रिसेट",
+          "रीसेट करो", "फिर से शुरू करो", "पुन्हा सुरू करा"}
 # She is asking about the claim documents: the checklist answers that, whatever else is under way.
 _CHECKLIST_WORDS = {"missing", "document", "documents", "checklist", "status", "pending", "कागद", "कागदपत्र",
                     "कागदपत्रे", "दस्तावेज", "दस्तावेज़", "बाकी", "राहिले"}
@@ -176,8 +179,13 @@ def _normalised(text: str) -> str:
 
 
 def is_delete(text: str) -> bool:
-    """She said "delete everything" (any wording in _DELETE)."""
-    return _normalised(text) in _DELETE
+    """She said "delete everything" or "reset": either erases her case."""
+    return _normalised(text) in _DELETE | _RESET
+
+
+def is_reset(text: str) -> bool:
+    """She said "reset": erase everything, then start again."""
+    return _normalised(text) in _RESET
 
 
 def _number(text: str) -> int | None:
@@ -186,7 +194,7 @@ def _number(text: str) -> int | None:
     return int(cleaned) if cleaned.isdecimal() else None
 
 
-def _language(conn: sqlite3.Connection, case: dict, text: str, chosen: str | None) -> str:
+def _language(conn: Store, case: dict, text: str, chosen: str | None) -> str:
     """Her language: the one she picked, or re-detected from any message of two or more words."""
     if chosen in config.SUPPORTED_LANGUAGES:
         if chosen != case.get("language"):
@@ -213,7 +221,7 @@ def _ask(question: str, **kwargs):
     return rag_answer.answer(question, intent="question", **kwargs)
 
 
-def _policy_context(conn: sqlite3.Connection, case: dict, context: Mapping[str, Any] | None) -> tuple[str | None, str | None]:
+def _policy_context(conn: Store, case: dict, context: Mapping[str, Any] | None) -> tuple[str | None, str | None]:
     """Her insurer (as the corpus spells it) and product: from the page she is on, or her case."""
     from app.rag.retrieve import resolve_insurer
 
@@ -224,7 +232,7 @@ def _policy_context(conn: sqlite3.Connection, case: dict, context: Mapping[str, 
 
 
 def _answer_text(
-    conn: sqlite3.Connection, case: dict, text: str, language: str, context, journey: str | None = None
+    conn: Store, case: dict, text: str, language: str, context, journey: str | None = None
 ) -> tuple[Message, ...] | None:
     said = _normalised(text)
     if said in _THANKS:
@@ -279,7 +287,7 @@ def _answer_text(
     return None
 
 
-def _letter(conn: sqlite3.Connection, case: dict, language: str) -> tuple[Message, ...]:
+def _letter(conn: Store, case: dict, language: str) -> tuple[Message, ...]:
     """The draft letter, read back in her language. Nothing is sent."""
     from app.services import drafts
 
@@ -290,7 +298,7 @@ def _letter(conn: sqlite3.Connection, case: dict, language: str) -> tuple[Messag
     return (Message(draft["readback"], localized=True), Message(DRAFT_NOT_SENT))
 
 
-def _find_text(conn: sqlite3.Connection, case: dict, text: str, language: str) -> tuple[Message, ...] | None:
+def _find_text(conn: Store, case: dict, text: str, language: str) -> tuple[Message, ...] | None:
     """Buying journey, text only: her documents first; else the regulation corpus (no insurer or
     product, so no insurer's wording is used); else what to look for."""
     if _has_hers(case["id"]):
@@ -321,7 +329,7 @@ def _cited(result, feedback: tuple[int, str] | None = None) -> Message:
     return Message(result.text, unverified=result.unverified, citations=citations, localized=True, feedback=feedback)
 
 
-def _log_answer(conn: sqlite3.Connection, case_id: str, question: str, result, source: str) -> int:
+def _log_answer(conn: Store, case_id: str, question: str, result, source: str) -> int:
     """Record that Praman answered (or could not), for the agent's brief and the console's counters.
     Her words and the answer are masked first; they are deleted with the case."""
     answered = result is not None and result.status == "answered"
@@ -335,7 +343,7 @@ def _log_answer(conn: sqlite3.Connection, case_id: str, question: str, result, s
     })
 
 
-def _ask_hers(conn: sqlite3.Connection, case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
+def _ask_hers(conn: Store, case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
     """Answer from the documents she sent in this chat, if any; None when they do not say."""
     from app.rag import mine
 
@@ -367,11 +375,34 @@ def _product_of_hers(case_id: str) -> str | None:
     return mine.product(case_id)
 
 
+def _restore_documents(conn: Store, case_id: str) -> None:
+    """After a restart the documents she sent are gone from memory: load them back from the store."""
+    from app.rag import mine
+
+    if mine.has(case_id):
+        return
+    for doc in store.case_pages(conn, case_id):
+        mine.add(case_id, doc["filename"], doc["pages"], doc["product"])
+
+
 def forget_documents(case_id: str) -> None:
-    """Drop the documents she sent in the chat (held in memory only)."""
+    """Drop the documents she sent in the chat from memory (the saved text goes with the case)."""
     from app.rag import mine
 
     mine.forget(case_id)
+
+
+def _note_respondent(conn, case_id: str, attachment: Attachment, filename: str, data: bytes, pages) -> None:
+    """A policy or insurer letter she sent: read its fields once so the insurer's legal name can
+    address a letter. The name still has to clear the confidence gate in cases.respondent_names."""
+    doc_type = documents.detect_doc_type(pages[0][1])
+    if doc_type not in ("policy", "letter") or routing.INSURER in cases.respondent_names(conn, case_id):
+        return
+    try:
+        extraction = documents.extract(data, filename, doc_type, mime_type=attachment.content_type)
+        store.save_document(conn, case_id, extraction, original=data, filename=filename)
+    except Exception as exc:  # a failed read leaves the name unknown, never a crash
+        logger.info("Could not read the insurer's name from a chat document: %s", exc)
 
 
 def _explain(
@@ -401,6 +432,9 @@ def _explain(
             continue
         product = documents.detect_product(" ".join(text for _, text in pages[:3]))
         read.append(mine.add(case_id, filename, pages, product))
+        store.save_pages(conn, case_id, filename, product, pages)  # consent was checked before this runs
+        if not buying:
+            _note_respondent(conn, case_id, attachment, filename, data, pages)
 
         # A health claim document still ticks its checklist slot, quietly; a bike, life or other
         # policy never fills the health claim checklist.
@@ -437,42 +471,56 @@ class UnknownAnswer(LookupError):
 
 
 def give_feedback(
-    conn: sqlite3.Connection, user: str, answer_id: int, solved: bool, language: str | None = None
+    conn: Store, user: str, answer_id: int, solved: bool, language: str | None = None
 ) -> tuple[Reply, bool]:
     """Her Yes or No to "Did this solve it?": the reply, and what was recorded. A Yes is counted on
     the console; a No also asks for a person, who then sees a brief. The first answer to each
     question stands, so a repeated tap counts once."""
     case = store.find_case_for_user(conn, user)
-    row = conn.execute(
-        "SELECT json_extract(detail, '$.status') AS status FROM events WHERE id = ? AND case_id = ? AND kind = 'answer_given'",
-        (answer_id, case["id"] if case else ""),
-    ).fetchone()
+    given = store.get_event(conn, case["id"], answer_id, "answer_given") if case else None
+    row = given["detail"] if given else None
     if case is None or row is None:
         raise UnknownAnswer(f"no answer {answer_id} for this person")
-    earlier = conn.execute(
-        "SELECT json_extract(detail, '$.solved') AS solved FROM events "
-        "WHERE case_id = ? AND kind = 'answer_feedback' AND json_extract(detail, '$.answer_id') = ?",
-        (case["id"], answer_id),
-    ).fetchone()
+    earlier = next(
+        (e["detail"] for e in store.case_events(conn, case["id"], "answer_feedback") if e["detail"].get("answer_id") == answer_id),
+        None,
+    )
     if earlier is not None:
         solved = bool(earlier["solved"])
     else:
         store.record_event(conn, case["id"], "answer_feedback", {"answer_id": answer_id, "solved": solved})
         if not solved:
             store.record_event(conn, case["id"], "agent_requested", {
-                "reason": "not_solved" if row["status"] == "answered" else "not_found", "answer_id": answer_id,
+                "reason": "not_solved" if row.get("status") == "answered" else "not_found", "answer_id": answer_id,
             })
     chosen = language if language in config.SUPPORTED_LANGUAGES else None
     reply = Reply(case["id"], chosen or case.get("language") or config.DEFAULT_LANGUAGE,
                   (Message(FEEDBACK_SOLVED if solved else FEEDBACK_PERSON),))
+    _log_turn(conn, reply, "Yes, it solved my question." if solved else "No, I need help.")
     return reply, solved
 
 
 # --- One message in, one reply out -----------------------------------------------
 
 
-def respond(
-    conn: sqlite3.Connection,
+def respond(conn: Store, user: str, text: str = "", attachments: tuple[Attachment, ...] = (), **kwargs) -> Reply:
+    """Handle one message from ``user`` (a channel-scoped id such as whatsapp:+91… or web:<session>),
+    and keep the turn in the transcript, masked. Nothing is kept for "delete everything"."""
+    reply = _respond(conn, user, text, attachments, **kwargs)
+    if reply.case_id is not None:
+        _log_turn(conn, reply, text, attachments)
+    return reply
+
+
+def _log_turn(conn: Store, reply: Reply, text: str, attachments: tuple[Attachment, ...] = ()) -> None:
+    if (text or "").strip() or attachments:
+        store.record_message(conn, reply.case_id, "user", text, reply.language, tuple(a.content_type for a in attachments))
+    for message in reply.messages:
+        store.record_message(conn, reply.case_id, "praman", message.text, reply.language, citations=message.citations)
+
+
+def _respond(
+    conn: Store,
     user: str,
     text: str = "",
     attachments: tuple[Attachment, ...] = (),
@@ -489,7 +537,7 @@ def respond(
     said = _normalised(text)
 
     # "delete everything": works at any point, and leaves nothing behind.
-    if said in _DELETE:
+    if said in _DELETE or said in _RESET:
         existing = store.find_case_for_user(conn, user)
         chosen = language if language in config.SUPPORTED_LANGUAGES else None
         reply_language = chosen or (existing or {}).get("language") or config.DEFAULT_LANGUAGE
@@ -502,6 +550,7 @@ def respond(
 
     case = store.case_for_user(conn, user)
     case_id = case["id"]
+    _restore_documents(conn, case_id)
     reply_language = _language(conn, case, text, language) if (text or language) else (case.get("language") or config.DEFAULT_LANGUAGE)
     photos = [a for a in attachments if a.content_type in config.ALLOWED_MIME_TYPES]
 

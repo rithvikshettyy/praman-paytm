@@ -15,7 +15,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 16
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
-    connection = store.connect(tmp_path / "praman.db")
+    connection = store.connect()
     store.ensure_case(connection, "c1")
     store.record_consent(connection, "c1", "read_documents", True)
     yield connection

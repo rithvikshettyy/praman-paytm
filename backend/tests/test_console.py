@@ -16,7 +16,6 @@ client = TestClient(app)
 
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "DISTRIBUTOR_SHORT_NAME", "Paytm")
     connection = store.connect()
     yield connection
