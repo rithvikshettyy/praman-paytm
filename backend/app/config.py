@@ -192,3 +192,4 @@ FIRECRAWL_TIMEOUT = _float("FIRECRAWL_TIMEOUT", 45.0)
 # Sites the policy search may read (comma-separated hostnames; subdomains count): the distributor's own
 # insurance pages. Set in backend/.env, never here. Blank = the whole web.
 POLICY_SEARCH_DOMAINS = tuple(d.strip().lower() for d in os.environ.get("POLICY_SEARCH_DOMAINS", "").split(",") if d.strip())
+POLICY_PAGES_FILE = DATA_DIR / "policy_pages.yaml"
