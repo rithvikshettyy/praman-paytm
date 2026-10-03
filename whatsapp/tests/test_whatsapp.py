@@ -44,9 +44,12 @@ def env(tmp_path, monkeypatch):
     channel._USER_LOCKS.clear()
     conversation._AWAITING_CONSENT.clear()
 
-    out = SimpleNamespace(texts=[], buttons=[], audio=[], uploads=[], media={"m1": PNG}, spoken=[], typing=[])
+    out = SimpleNamespace(texts=[], buttons=[], audio=[], uploads=[], media={"m1": PNG}, spoken=[], typing=[], lists=[])
     monkeypatch.setattr(meta, "send_text", lambda to, body: out.texts.append((to, body)) or True)
     monkeypatch.setattr(meta, "send_buttons", lambda to, body, buttons: out.buttons.append((to, body, buttons)) or True)
+    monkeypatch.setattr(
+        meta, "send_list", lambda to, body, button, rows: out.lists.append((to, body, button, rows)) or True
+    )
     monkeypatch.setattr(meta, "send_audio", lambda to, media_id: out.audio.append((to, media_id)) or True)
     monkeypatch.setattr(meta, "send_typing", lambda message_id: out.typing.append(message_id) or True)
     monkeypatch.setattr(meta, "upload_media", lambda data, name, mime: out.uploads.append((name, mime)) or "up1")
@@ -126,13 +129,13 @@ def test_no_app_secret_refuses_everything(env, monkeypatch):
 def test_a_good_signature_is_acknowledged_and_answered(env):
     assert post(payload(text_msg("hello"))).status_code == 200
     assert env.typing == ["wamid.1"]
-    assert [to for to, _ in env.texts] == [NUMBER]
+    assert [to for to, *_ in env.lists] == [NUMBER]
 
 
 def test_a_message_delivered_twice_is_answered_once(env):
     post(payload(text_msg("hello", mid="dup")))
     post(payload(text_msg("hello", mid="dup")))
-    assert len(env.texts) == 1
+    assert len(env.lists) == 1
 
 
 def test_status_callbacks_are_ignored(env):
@@ -276,7 +279,7 @@ def test_first_messages_arriving_together_open_one_case(env):
     conn = store.connect()
     count = conn.execute("SELECT COUNT(*) FROM cases WHERE channel_user = ?", (USER,)).fetchone()[0]
     conn.close()
-    assert errors == [] and count == 1 and len(env.texts) == 4
+    assert errors == [] and count == 1 and len(env.lists) == 4
 
 
 # --- Onboarding: language, welcome, three options --------------------------------
@@ -286,11 +289,46 @@ def labels(out):
     return [body for _, body in out.texts]
 
 
-def test_first_text_gets_only_the_language_menu(env):
+def row_ids(out, index=-1):
+    return [rid for rid, _, _ in out.lists[index][3]]
+
+
+def test_first_text_gets_only_the_language_list(env):
     post(payload(text_msg("hello")))
-    assert env.texts == [(NUMBER, channel.LANGUAGE_MENU)] and env.buttons == []
-    assert all(name in channel.LANGUAGE_MENU for name in channel.NATIVE_NAMES.values())
+    assert env.texts == [] and env.buttons == [] and len(env.lists) == 1
     assert len(channel.NATIVE_NAMES) == len(config.SUPPORTED_LANGUAGES) == 11
+    # 10 rows is WhatsApp's limit: nine languages and "more", then the other two and "back".
+    assert row_ids(env) == [f"lang:{c}" for c in list(config.SUPPORTED_LANGUAGES)[:9]] + ["lang:more"]
+    assert [title for _, title, _ in env.lists[0][3]][:2] == ["English", "हिन्दी"]
+
+
+def test_more_languages_shows_the_rest_and_a_way_back(env):
+    post(payload(text_msg("hello", mid="a")))
+    post(payload(tap("lang:more", mid="b")))
+    assert row_ids(env) == ["lang:pa-IN", "lang:od-IN", "lang:back"]
+    post(payload(tap("lang:back", mid="c")))
+    assert row_ids(env)[-1] == "lang:more"
+    post(payload(tap("lang:more", mid="d")))
+    post(payload(tap("lang:od-IN", mid="e")))
+    conn = store.connect()
+    assert store.find_case_for_user(conn, USER)["language"] == "od-IN"
+    conn.close()
+    assert env.buttons  # the three options follow
+
+
+def test_tapping_a_language_row_sets_it(env):
+    post(payload(text_msg("hello", mid="a")))
+    post(payload(tap("lang:ta-IN", mid="b")))
+    conn = store.connect()
+    assert store.find_case_for_user(conn, USER)["language"] == "ta-IN"
+    conn.close()
+
+
+def test_if_meta_refuses_the_list_the_numbered_text_is_sent(env, monkeypatch):
+    monkeypatch.setattr(meta, "send_list", lambda *a, **k: False)
+    post(payload(text_msg("hello")))
+    assert env.texts == [(NUMBER, channel.LANGUAGE_MENU)]
+    assert all(name in channel.LANGUAGE_MENU for name in channel.NATIVE_NAMES.values())
 
 
 @pytest.mark.parametrize("reply", ["3", "বাংলা", "Bengali", " bengali. "])
@@ -309,15 +347,14 @@ def test_an_unrecognised_reply_gets_the_menu_again(env):
     post(payload(text_msg("hello", mid="a")))
     post(payload(text_msg("12", mid="b")))
     post(payload(text_msg("klingon", mid="c")))
-    assert labels(env) == [channel.LANGUAGE_MENU] * 3
+    assert len(env.lists) == 3 and env.texts == []
 
 
 def test_a_photo_before_a_language_is_not_downloaded_or_read(env, monkeypatch):
     monkeypatch.setattr(meta, "download_media", lambda media_id: pytest.fail("downloaded before onboarding"))
     monkeypatch.setattr(documents, "read_pages", lambda *a, **k: pytest.fail("read before onboarding"))
     post(payload(media_msg("image")))
-    [(_, body)] = env.texts
-    assert body.startswith(channel.CHOOSE_FIRST) and channel.LANGUAGE_MENU in body
+    assert env.texts == [(NUMBER, channel.CHOOSE_FIRST)] and len(env.lists) == 1
 
 
 def test_delete_everything_works_before_a_language_is_chosen(env):
@@ -325,7 +362,7 @@ def test_delete_everything_works_before_a_language_is_chosen(env):
     post(payload(text_msg("delete everything")))
     assert conversation.DELETED in env.texts[0][1]
     post(payload(text_msg("hi", mid="again")))
-    assert env.texts[-1] == (NUMBER, channel.LANGUAGE_MENU)
+    assert len(env.lists) == 1
 
 
 def test_menu_and_language_keywords(env):
@@ -333,7 +370,7 @@ def test_menu_and_language_keywords(env):
     post(payload(text_msg("menu", mid="a")))
     assert [bid for bid, _ in env.buttons[0][2]] == ["journey:find", "journey:check", "journey:complain"]
     post(payload(text_msg("language", mid="b")))
-    assert env.texts[-1] == (NUMBER, channel.LANGUAGE_MENU)
+    assert len(env.lists) == 1
     post(payload(text_msg("2", mid="c")))
     conn = store.connect()
     assert store.find_case_for_user(conn, USER)["language"] == "hi-IN"

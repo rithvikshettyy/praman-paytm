@@ -47,6 +47,11 @@ LANGUAGE_MENU = (
     + "\nReply with the number or the name of the language."
 )
 CHOOSE_FIRST = "Please choose your language first, then send it again."
+LANGUAGE_BODY = "Welcome to Praman. Choose your language / अपनी भाषा चुनें."
+LANGUAGE_BUTTON = "Language / भाषा"
+# A WhatsApp list holds 10 rows and there are 11 languages: nine and "more", then the rest and "back".
+LANGUAGE_PAGE_SIZE = 9
+MORE_ROW, BACK_ROW = "lang:more", "lang:back"
 # Typed or tapped, in any of her languages' words for these.
 _MENU_WORDS = {"menu", "मेनू", "मेन्यू"}
 _LANGUAGE_WORDS = {"language", "भाषा", "bhasha"}
@@ -170,9 +175,21 @@ def _say(user: str, text: str) -> None:
 # --- Onboarding: language, welcome, three options ---------------------------------
 
 
-def _pick_language(text: str) -> str | None:
-    """A language code from "3", "मराठी" or "marathi"; None if it is none of the 11."""
+def _send_language_menu(user: str, page: int = 0) -> None:
+    """The languages as a tap list. If Meta refuses it, the numbered text still works."""
     codes = list(config.SUPPORTED_LANGUAGES)
+    shown = codes[:LANGUAGE_PAGE_SIZE] if page == 0 else codes[LANGUAGE_PAGE_SIZE:]
+    rows = [(f"lang:{code}", NATIVE_NAMES[code], config.SUPPORTED_LANGUAGES[code]) for code in shown]
+    rows.append((MORE_ROW, "More languages / और", "") if page == 0 else (BACK_ROW, "Back / वापस", ""))
+    if not meta.send_list(_number(user), LANGUAGE_BODY, LANGUAGE_BUTTON, rows):
+        meta.send_text(_number(user), LANGUAGE_MENU)
+
+
+def _pick_language(text: str) -> str | None:
+    """A language code from a tapped row ("lang:hi-IN"), "3", "मराठी" or "marathi"; None if none of the 11."""
+    codes = list(config.SUPPORTED_LANGUAGES)
+    if text.startswith("lang:"):
+        return text.removeprefix("lang:") if text.removeprefix("lang:") in codes else None
     number = conversation._number(text)
     if number is not None:
         return codes[number - 1] if 1 <= number <= len(codes) else None
@@ -202,12 +219,16 @@ def _onboard(inbound: meta.Inbound, text: str) -> bool:
         language = case.get("language")
         if not language:
             if inbound.kind in ("image", "document"):  # nothing is downloaded or read yet
-                meta.send_text(_number(user), f"{CHOOSE_FIRST}\n\n{LANGUAGE_MENU}")
+                meta.send_text(_number(user), CHOOSE_FIRST)
+                _send_language_menu(user)
+                return True
+            if text in (MORE_ROW, BACK_ROW):
+                _send_language_menu(user, page=int(text == MORE_ROW))
                 return True
             picked = _pick_language(text)
             if not picked:
                 logger.info("Language choice not recognised")
-                meta.send_text(_number(user), LANGUAGE_MENU)
+                _send_language_menu(user)
                 return True
             store.set_language(conn, case["id"], picked)
             deliver(user, picked, Message(WELCOME))
@@ -216,7 +237,7 @@ def _onboard(inbound: meta.Inbound, text: str) -> bool:
         said = conversation._normalised(text)
         if said in _LANGUAGE_WORDS:
             store.set_language(conn, case["id"], None)
-            meta.send_text(_number(user), LANGUAGE_MENU)
+            _send_language_menu(user)
             return True
         if said in _MENU_WORDS:
             _show_menu(user, language)

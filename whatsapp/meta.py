@@ -157,6 +157,21 @@ def send_buttons(to: str, body: str, buttons: list[tuple[str, str]]) -> bool:
     })
 
 
+def send_list(to: str, body: str, button: str, rows: list[tuple[str, str, str]]) -> bool:
+    """A tap-to-open list, up to 10 rows of (id, title, description); a tap comes back as the row id."""
+    return _send({
+        "to": to, "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {"text": body[:1024]},
+            "action": {"button": button[:20], "sections": [{"title": "Languages", "rows": [
+                {"id": rid, "title": title[:24], "description": description[:72]}
+                for rid, title, description in rows[:10]
+            ]}]},
+        },
+    })
+
+
 def send_typing(message_id: str) -> bool:
     """Marks the message read and shows the typing bubble (Meta clears it after 25 s or on our reply)."""
     if not message_id:
