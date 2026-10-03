@@ -17,7 +17,7 @@ from fastapi import BackgroundTasks, Body, FastAPI, File, Form, Header, Request,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from app import cases, complaints, config, console, conversation, guided, handoff, readiness, store
+from app import cases, complaints, config, console, conversation, guided, handoff, readiness, store, voice_agent
 from app.clients import sarvam
 from app.clients.sarvam import SarvamBadRequest, SarvamUnavailable
 from app.core import ladder_engine as le
@@ -737,5 +737,40 @@ def n8n_reminder_due(body: dict = Body(...), x_praman_secret: str | None = Heade
     conn = store.connect()
     try:
         return reminders.due(conn, case_id, reminder_id, on)
+    finally:
+        conn.close()
+
+
+# --- Phone calls (the Sarvam voice agent) -------------------------------------------
+# The agent built in the Sarvam dashboard holds the call and asks this backend for each answer through an
+# HTTP tool (bearer VOICE_AGENT_SECRET); when a call ends it posts a webhook (?token=VOICE_AGENT_SECRET).
+
+
+@app.post("/api/voice-agent/turn")
+def voice_agent_turn(
+    body: dict = Body(...), authorization: str | None = Header(None), x_praman_secret: str | None = Header(None),
+):
+    """One thing the caller said: {caller, journey?, text, language?}. Returns what the agent should say."""
+    if not voice_agent.authentic(authorization, x_praman_secret):
+        return _bad("Not allowed.", 401)
+    caller = body.get("caller") or body.get("user_identifier") or body.get("phone")
+    conn = store.connect()
+    try:
+        result = voice_agent.turn(conn, caller, body.get("journey"), body.get("text"), body.get("language"))
+    finally:
+        conn.close()
+    if result is None:
+        return _bad("caller must be a phone number.")
+    return result
+
+
+@app.post("/api/voice-agent/webhook")
+def voice_agent_webhook(body: dict = Body(...), token: str | None = None, authorization: str | None = Header(None)):
+    """A call ended. Only the fact that it happened is kept."""
+    if not voice_agent.authentic(authorization, token=token):
+        return _bad("Not allowed.", 401)
+    conn = store.connect()
+    try:
+        return {"recorded": voice_agent.record_call(conn, body)}
     finally:
         conn.close()

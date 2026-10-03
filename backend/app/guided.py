@@ -313,7 +313,18 @@ def _complaint_class(conn: Store, case_id: str) -> tuple[str | None, str | None]
     return detail.get("grievance_class"), detail.get("product")
 
 
-def _ask_contact() -> Message:
+def set_known_contact(user: str, number: str) -> None:
+    """On a phone call the number she is calling from is already known: offer it instead of asking for one."""
+    with _LOCK:
+        flow = _COMPLAINT.setdefault(user, {"stage": "describe", "parts": [], "last4": None, "want_person": False})
+        flow["known_contact"] = number
+
+
+def _ask_contact(flow: dict | None = None) -> Message:
+    known = (flow or {}).get("known_contact")
+    if known:
+        return Message(f"Shall I use the number you are calling from, ending {known[-4:]}? Say yes, or give another "
+                       "number or an email, or say skip.")
     return Message("What phone number or email can our team reach you on? Say skip if you would rather not say.")
 
 
@@ -333,7 +344,7 @@ def escalate(conn: Store, user: str, case: dict, seed: str = "") -> tuple[Messag
             return (Message("I will get a person to look at this. First, tell me in a line what went wrong, so you "
                             "do not have to explain it again."),)
         flow["stage"] = "contact"
-    return (_ask_contact(),)
+    return (_ask_contact(flow),)
 
 
 def _confirm(flow: dict) -> Message:
@@ -353,7 +364,9 @@ def _complaint_turn(conn: Store, user: str, case: dict, text: str) -> tuple[Mess
     said = _normal(text)
     stage = flow["stage"]
     if stage == "contact":
-        if said in {"skip", "no", "none"}:
+        if flow.get("known_contact") and said in _YES:
+            flow["contact"] = flow["known_contact"]
+        elif said in {"skip", "no", "none"}:
             flow["contact"] = None
         else:
             contact = complaints.parse_contact(text)
@@ -396,7 +409,7 @@ def _complaint_turn(conn: Store, user: str, case: dict, text: str) -> tuple[Mess
     if flow.get("want_person"):
         flow["want_person"] = False
         flow["stage"] = "contact"
-        return (_ask_contact(),)
+        return (_ask_contact(flow),)
     return None
 
 

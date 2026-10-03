@@ -185,6 +185,22 @@ def validate() -> list[str]:
         problems.append("SARVAM_API_KEY is not set - every Sarvam call will fail.")
     return problems
 
+# --- Phone calls (Sarvam voice agent, built in the Sarvam dashboard) ---------------------------
+# The agent holds the conversation; it calls this backend through an HTTP tool (see voice/README.md) and
+# posts a webhook when a call ends. Blank ids = outbound calls off; blank VOICE_AGENT_SECRET = the tool
+# and webhook endpoints refuse everything.
+VOICE_AGENT_SECRET = os.environ.get("VOICE_AGENT_SECRET", "").strip()
+SARVAM_VOICE_API_KEY = os.environ.get("SARVAM_VOICE_API_KEY", "").strip() or SARVAM_API_KEY
+SARVAM_VOICE_BASE_URL = os.environ.get("SARVAM_VOICE_BASE_URL", "https://apps.sarvam.ai/api/outbounds").strip().rstrip("/")
+SARVAM_VOICE_ORG_ID = os.environ.get("SARVAM_VOICE_ORG_ID", "").strip()
+SARVAM_VOICE_WORKSPACE_ID = os.environ.get("SARVAM_VOICE_WORKSPACE_ID", "").strip()
+SARVAM_VOICE_APP_ID = os.environ.get("SARVAM_VOICE_APP_ID", "").strip()
+SARVAM_VOICE_APP_VERSION = _int("SARVAM_VOICE_APP_VERSION", 1)
+SARVAM_VOICE_CONNECTION_ID = os.environ.get("SARVAM_VOICE_CONNECTION_ID", "").strip()
+SARVAM_VOICE_AGENT_NUMBER = os.environ.get("SARVAM_VOICE_AGENT_NUMBER", "").strip()
+# What the agent is told to say back: long answers are cut at a sentence so the caller is not talked at.
+VOICE_REPLY_MAX_CHARS = _int("VOICE_REPLY_MAX_CHARS", 450)
+
 # --- Web search for the buying journey -----------------------------------------
 # Firecrawl finds policies online (Sarvam cannot browse). Blank key = feature off; the old text answers.
 FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY", "").strip()

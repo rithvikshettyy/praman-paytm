@@ -38,6 +38,7 @@ CONSENT_SCOPES = (
     "read_kfs",
     "store_fields",
     "contact_insurer",
+    "phone_call",  # let the voice agent ring her number (her number goes to Sarvam's calling service)
     "register_complaint",  # pass her complaint, a short summary and how to reach her to the support team
     "premium_reminders",  # send her email address and one date to the scheduling service, to remind her
     "keep_original",  # keep the uploaded file itself, not just the fields read from it
@@ -68,6 +69,7 @@ EVENT_KINDS = (
     "clock_due",  # detail: step, action (escalate|ask_agent|stop), next_step. The response window ended
     "complaint_registered",  # detail: text (redacted), contact, policy_last4, product, grievance_class, channel. Needs a person
     "complaint_status",  # detail: complaint_id, status (pending|resolved). An agent's mark; the latest one stands
+    "call_completed",  # detail: status, seconds, direction. A phone call ended; no words from it are kept
     "reminder_scheduled",  # detail: reminder_id, due_date, remind_on. Handed to the n8n reminder workflow; no email kept
     "reminder_sent",  # detail: reminder_id, on. The workflow asked, and the reminder was allowed to go out
     "reminder_cancelled",  # detail: reason. She asked to stop; any waiting reminder is refused when it wakes

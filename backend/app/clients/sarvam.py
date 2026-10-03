@@ -14,6 +14,7 @@ import threading
 import time
 from typing import Any, Iterable, Sequence
 
+import httpx
 from sarvamai import SarvamAI
 from sarvamai.core.api_error import ApiError
 from sarvamai.errors import (
@@ -669,3 +670,63 @@ def text_to_speech(
         kwargs["output_audio_codec"] = codec
     response = _translate_errors(_speech_call, "text_to_speech", "convert", **kwargs)
     return _dump(response)
+
+
+# --- Phone calls (the voice agent built in the Sarvam dashboard) ------------------------------
+
+
+def voice_calls_configured() -> bool:
+    return all((
+        config.SARVAM_VOICE_API_KEY, config.SARVAM_VOICE_ORG_ID, config.SARVAM_VOICE_WORKSPACE_ID,
+        config.SARVAM_VOICE_APP_ID, config.SARVAM_VOICE_CONNECTION_ID, config.SARVAM_VOICE_AGENT_NUMBER,
+    ))
+
+
+def place_outbound_call(
+    user_phone: str,
+    *,
+    language: str | None = None,
+    variables: dict | None = None,
+    webhook_url: str | None = None,
+    metadata: dict | None = None,
+) -> str:
+    """Ask the voice agent to ring ``user_phone`` (with country code) and talk to her. Returns the attempt id.
+
+    The number itself has to go, it is the call; every other text sent is masked first. ``language`` is a
+    language name as the agent knows it ("Hindi"); ``webhook_url`` is told how the call ended.
+    """
+    if not voice_calls_configured():
+        raise SarvamUnavailable("The voice agent is not configured (SARVAM_VOICE_* in backend/.env).")
+    body: dict[str, Any] = {
+        "app_config": {
+            "app_id": config.SARVAM_VOICE_APP_ID,
+            "app_version": config.SARVAM_VOICE_APP_VERSION,
+            "connection_config": {
+                "connection_id": config.SARVAM_VOICE_CONNECTION_ID,
+                "agent_phone_number": config.SARVAM_VOICE_AGENT_NUMBER,
+            },
+        },
+        "user_config": {"user_phone_number": user_phone},
+    }
+    if variables:
+        body["app_config"]["agent_variables"] = {k: redact(v) if isinstance(v, str) else v for k, v in variables.items()}
+    if language:
+        body["app_config"]["app_overrides"] = {"initial_language_name": language}
+    if webhook_url:
+        body["webhook_config"] = {
+            "url": webhook_url,
+            "metadata": {k: redact(v) if isinstance(v, str) else v for k, v in (metadata or {}).items()},
+        }
+    url = (
+        f"{config.SARVAM_VOICE_BASE_URL}/v1/orgs/{config.SARVAM_VOICE_ORG_ID}"
+        f"/workspaces/{config.SARVAM_VOICE_WORKSPACE_ID}/outbounds"
+    )
+    try:
+        response = httpx.post(url, json=body, headers={"X-API-Key": config.SARVAM_VOICE_API_KEY}, timeout=config.SARVAM_TIMEOUT)
+    except httpx.HTTPError as exc:
+        raise SarvamUnavailable("Sarvam's calling service could not be reached.") from exc
+    if response.status_code in (400, 401, 403, 404, 422):
+        raise SarvamBadRequest(f"Sarvam rejected the call request: [{response.status_code}] {response.text[:300]}")
+    if response.status_code >= 400:
+        raise SarvamUnavailable(f"Sarvam's calling service failed: [{response.status_code}]")
+    return str((response.json() or {}).get("attempt_id") or "")
