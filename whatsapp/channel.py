@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 import threading
 from collections import OrderedDict
 
@@ -136,9 +137,22 @@ def _language_of(user: str) -> str:
     return _known_language(user) or config.DEFAULT_LANGUAGE
 
 
+# A sentence ends at . ! ? or the danda, when the next one starts with a capital or an Indian script
+# (so "Rs. 5,00,000" and "p.1" stay whole).
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?।])\s+(?=[A-Zऀ-෿\"“(])")
+
+
+def _readable(text: str) -> str:
+    """No inline [source, document, p.N] labels; one sentence per line, paragraphs kept apart."""
+    paragraphs = conversation.without_citations(text).split("\n")
+    return "\n".join(_SENTENCE_BREAK.sub("\n", paragraph.strip()) for paragraph in paragraphs)
+
+
 def deliver(user: str, language: str, message: Message, voice: bool = False) -> None:
     """One message in her language: text (the consent question as buttons), then a voice note if she spoke."""
-    body = conversation.render(message, language)
+    rendered = conversation.render(message, language)
+    # Answers from documents run long: a line per sentence. Fixed replies are short and stay as written.
+    spoken = body = _readable(rendered) if message.citations else conversation.without_citations(rendered)
     if message.unverified:
         body = f"{body}\n{i18n.translate(UNVERIFIED_BADGE, language)}"
     if message.text == CONSENT_PROMPT and len(body) <= 1024:
@@ -148,7 +162,7 @@ def deliver(user: str, language: str, message: Message, voice: bool = False) -> 
     else:
         meta.send_text(_number(user), body)
     if voice:
-        _speak(user, language, conversation.without_citations(body))
+        _speak(user, language, spoken)
 
 
 def _speak(user: str, language: str, text: str) -> None:

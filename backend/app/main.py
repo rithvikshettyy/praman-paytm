@@ -578,7 +578,7 @@ def readiness_documents(
             return JSONResponse(
                 {"error": "Consent is needed before any document is read.", "consent_needed": True}, status_code=403
             )
-        summaries, facts, trusted = {}, {}, {}
+        summaries, read = {}, {}
         for doc_type, upload in (("policy", policy), ("bill", bill)):
             if demo:
                 extraction, original = documents.fixture_extraction(doc_type), None
@@ -590,17 +590,8 @@ def readiness_documents(
             review = documents.review(doc_type, extraction.fields)
             store.save_document(conn, case_id, extraction, original=original, filename=getattr(upload, "filename", None))
             summaries[doc_type] = readiness.document_summary(doc_type, extraction, review)
-            facts.update(review.facts)
-            trusted[doc_type] = documents.trusted_values(extraction.fields)
-        state = cases.checklist_state(conn, case_id)
-        facts["documents_required"] = state.required
-        if state.collected:
-            facts["documents_collected"] = state.collected
-        fact_sheet = le.Facts(**facts)
-        verdict = cases.check_readiness(conn, case_id, fact_sheet)
-        ladder = ladders.load("insurance_health_claim")
-        papers = readiness.check_papers(conn, case_id, trusted.get("policy"), trusted.get("bill"))
-        return {"case_id": case_id, "documents": summaries, "papers": papers, **readiness.view(verdict, fact_sheet, ladder)}
+            read[doc_type] = extraction.fields
+        return {"case_id": case_id, "documents": summaries, **readiness.assess(conn, case_id, read)}
     finally:
         conn.close()
 

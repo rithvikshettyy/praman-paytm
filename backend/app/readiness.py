@@ -187,6 +187,7 @@ def papers_view(result: le.PapersCheck) -> dict[str, Any]:
         "passed": [{"check": c, "label": checks[c]["label"]} for c in result.passed],
         "skipped": [{"check": c, "label": checks[c]["label"], "needs": checks[c]["needs"]} for c in result.skipped],
         "to_fix": sum(f["severity"] == "fix" for f in findings),
+        "non_payable_amount": next((f.values["amount"] for f in result.findings if f.problem == "non_payable_items"), 0),
     }
 
 
@@ -202,3 +203,85 @@ def check_papers(
             "heads_up": [f["problem"] for f in view["findings"] if f["severity"] != "fix"],
         })
     return view
+
+
+# --- One verdict from her policy and bill -------------------------------------
+
+
+def assess(conn: Store, case_id: str, fields: dict[str, dict[str, documents.Field]]) -> dict[str, Any]:
+    """Verdict, open questions and paper checks from each document's fields ({"policy": ..., "bill": ...}).
+    Only values that clear the confidence gate reach the engine or the checks."""
+    facts, trusted = {}, {}
+    for doc_type, read in fields.items():
+        facts.update(documents.review(doc_type, read).facts)
+        trusted[doc_type] = documents.trusted_values(read)
+    state = cases.checklist_state(conn, case_id)
+    facts["documents_required"] = state.required
+    if state.collected:
+        facts["documents_collected"] = state.collected
+    fact_sheet = le.Facts(**facts)
+    verdict = cases.check_readiness(conn, case_id, fact_sheet)
+    papers = check_papers(conn, case_id, trusted.get("policy"), trusted.get("bill"))
+    split = bill_split(verdict, fact_sheet, papers, trusted.get("policy") or {}, trusted.get("bill") or {})
+    return {"papers": papers, "split": split, **view(verdict, fact_sheet, ladders.load("insurance_health_claim"))}
+
+
+# Rules that say "not yet ready to file", not "not covered": they never zero the insurer's share.
+_FILING_ONLY = {"documents_incomplete"}
+
+
+def _cover_pending(verdict: le.Verdict) -> set[str]:
+    """Facts still unknown that a rule deciding cover (not filing) needs."""
+    ladder = ladders.load("insurance_health_claim")
+    return {
+        name for rule in ladder.rules if rule.effect == le.BLOCK and rule.id not in _FILING_ONLY
+        for name in rule.facts if name in verdict.facts_pending
+    }
+
+
+def bill_split(verdict: le.Verdict, facts: le.Facts, papers: dict[str, Any], policy: dict, bill: dict) -> dict | None:
+    """Who pays what on the bill (engine arithmetic), or None without a trusted bill total.
+    Nothing is covered when the admission falls outside the policy period or a rule blocks the
+    claim itself; ``conditional`` when cover still hangs on facts she has not given."""
+    if bill.get("bill_total") is None:
+        return None
+    outside = [f["message"] for f in papers["findings"] if f["check"] == "admission_in_policy_period"]
+    blocked = [hit for hit in verdict.blocks if hit.rule_id not in _FILING_ONLY]
+    room = next((hit.values["deduction"] for hit in verdict.deductions if hit.values.get("deduction") is not None), 0)
+    split = le.split_bill(
+        bill["bill_total"], covered=not (outside or blocked), not_payable=papers["non_payable_amount"],
+        room_deduction=room, co_pay_percent=policy.get("co_pay_percent"), sum_insured=facts.sum_insured,
+    )
+    return {
+        **dataclasses.asdict(split),
+        "co_pay_percent": policy.get("co_pay_percent"),
+        "conditional": split.covered and bool(_cover_pending(verdict)),
+    }
+
+
+def _merged(conn: Store, case_id: str, doc_type: str) -> dict[str, documents.Field] | None:
+    """Every document of this type on the case as one: per field the newest value read; a bill
+    sent page by page has its lines joined (a page sent twice counts once)."""
+    merged: dict[str, documents.Field] = {}
+    lines: list[dict] = []
+    line_confidence = 1.0
+    for row in store.case_documents(conn, case_id, (doc_type,)):  # newest first
+        for name, read in documents.stored_fields(doc_type, row["fields"]).items():
+            if name == "line_items":
+                for line in read.value or ():
+                    if line not in lines:
+                        lines.append(line)
+                        line_confidence = min(line_confidence, read.confidence)
+            elif read.value is not None and name not in merged:
+                merged[name] = read
+    if lines:
+        merged["line_items"] = documents.Field(lines, line_confidence)
+    return merged or None
+
+
+def from_case(conn: Store, case_id: str) -> dict[str, Any] | None:
+    """The assessment of the policy and bill she sent in the chat; None until both are read."""
+    policy, bill = _merged(conn, case_id, "policy"), _merged(conn, case_id, "bill")
+    if policy is None or bill is None:
+        return None
+    return assess(conn, case_id, {"policy": policy, "bill": bill})

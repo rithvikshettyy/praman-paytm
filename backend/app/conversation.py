@@ -32,10 +32,11 @@ import unicodedata
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping
 
-from app import cases, config, store
+from app import cases, config, readiness, store
 from app.store import Store
 from app.clients import sarvam
 from app.core import agent, ladders, routing
+from app.core import ladder_engine as le
 from app.services import documents, i18n, n8n, reminders
 from app.services.redact import redact
 
@@ -117,6 +118,32 @@ BUY_CHECK_QUESTION = (
     "the co-payment, the waiting periods and the main exclusions, whichever are in the document. "
     "At most five sentences."
 )
+# "Will this be covered?" with her policy and bill both read: the engine's verdict, not a model's guess.
+COVER_INTRO = "I checked your bill against your policy."
+COVER_BILLED = "Bill total: {amount}"
+COVER_PARTS = (  # (BillSplit field, label): what comes off before the insurer pays; shown when not zero
+    ("not_payable", "Items insurers usually do not pay: {amount}"),
+    ("room_deduction", "Cut because the room costs more than the policy allows: {amount}"),
+    ("co_pay", "Your co-payment ({percent}%): {amount}"),
+    ("over_sum_insured", "Above your sum insured: {amount}"),
+)
+COVER_INSURER = "Insurer pays (estimate): {amount}"
+COVER_YOU = "You pay (estimate): {amount}"
+COVER_NOTHING = "This policy pays nothing for this bill, so you pay all of it: {amount}."
+COVER_IF = "This assumes your policy covers this treatment."
+COVER_NO_TOTAL = (
+    "I could not read the bill's total clearly, so I cannot split it between you and the insurer. "
+    "Send a clear photo of the page with the grand total."
+)
+COVER_HEADLINES = {
+    le.FILE: "Nothing I check stops you filing this claim.",
+    le.FILE_WITH_KNOWN_DEDUCTION: "You can file this claim, with the cut above.",
+    le.DO_NOT_FILE_YET: "Do not file this claim yet:",
+    le.FACTS_PENDING: "I cannot yet say for sure whether it is covered.",
+}
+COVER_ASK = "What still decides it: {questions} Look for these in your policy, or ask me about each one."
+COVER_CAVEAT = "This is what your papers show, not an approval. The insurer decides the claim."
+COVER_NEEDS_POLICY = "To tell you whether this bill is covered, I need your policy too. Send a photo or PDF of it."
 NEED_NAME = "I do not yet know your insurer's full legal name, so I cannot address a letter to the right place."
 DRAFT_NOT_SENT = "This is a draft. Nothing has been sent."
 LETTER_BUTTON = ("letter", "Write the letter")
@@ -129,6 +156,21 @@ _DELETE = {"delete everything", "delete all", "delete my data", "सगळं �
 # "Start again": the same erasing as "delete everything"; the WhatsApp channel then restarts onboarding.
 _RESET = {"reset", "reset everything", "reset chat", "restart", "start over", "रीसेट", "रिसेट",
           "रीसेट करो", "फिर से शुरू करो", "पुन्हा सुरू करा"}
+# She is asking whether this bill will be paid, or how much: a cover word with a word pointing at the
+# bill, or a cover word and nothing but everyday words ("will my insurance cover it?", "how much do I
+# pay?"). "Does it cover maternity?" names something else, so it stays with the policy wording.
+_COVER_WORDS = {"cover", "covered", "covers", "coverage", "payable", "pay", "paid", "reimburse", "reimbursed",
+                "claimable", "कवर", "कव्हर", "क्लेम", "भरना", "देना", "मिलेगा"}
+_BILL_WORDS = {"this", "these", "bill", "bills", "hospital", "expense", "expenses", "treatment", "admission",
+               "यह", "ये", "इसका", "इसे", "हे", "बिल", "खर्च", "अस्पताल", "हॉस्पिटल", "रुग्णालय"}
+_EVERYDAY_WORDS = {
+    "will", "would", "can", "could", "does", "do", "did", "is", "are", "was", "be", "get", "have", "has", "need",
+    "my", "me", "i", "we", "our", "the", "a", "an", "it", "that", "of", "to", "for", "by", "under", "in", "from",
+    "and", "or", "how", "much", "what", "which", "part", "amount", "money", "all", "full", "whole", "entire",
+    "insurance", "policy", "insurer", "company", "claim", "rest", "remaining", "left", "own", "pocket",
+    "क्या", "मेरा", "मेरी", "मेरे", "बीमा", "पॉलिसी", "कितना", "कितने", "करेगा", "करेगी", "होगा", "होगी", "है",
+    "को", "का", "की", "के", "में", "से", "पैसा", "पैसे", "मुझे", "हमें",
+}
 # She is asking about the claim documents: the checklist answers that, whatever else is under way.
 _CHECKLIST_WORDS = {"missing", "document", "documents", "checklist", "status", "pending", "कागद", "कागदपत्र",
                     "कागदपत्रे", "दस्तावेज", "दस्तावेज़", "बाकी", "राहिले"}
@@ -243,6 +285,12 @@ def _answer_text(
         return (Message(THANKS),)
     if said in _GREETINGS:
         return (Message(GREETING),)
+    words = set(said.split())
+    about_this_bill = words & _BILL_WORDS or words <= _COVER_WORDS | _EVERYDAY_WORDS
+    if journey != "complain" and words & _COVER_WORDS and about_this_bill:
+        verdict = _cover(conn, case["id"])
+        if verdict:
+            return verdict
     found = agent.classify(text)
     if journey == "complain" and found.intent != "smalltalk" and not (found.intent == "grievance" and found.grievance_class):
         return (Message(NEEDS_DETAIL),)  # a complaint needs the problem and the product, not a coverage answer
@@ -379,6 +427,44 @@ def _reminder_turn(conn: Store, user: str, case: dict, text: str, said: str) -> 
     return (Message(_confirm_text(flow["due"]) if flow["stage"] == "confirm" else REMINDER_NO_DATE),)
 
 
+def _cover(conn: Store, case_id: str) -> tuple[Message, ...] | None:
+    """Her bill checked against her policy by the engine (verdict, deduction, paper checks), in plain
+    words. None when she has sent neither, so the question goes to her documents as before."""
+    found = readiness.from_case(conn, case_id)
+    if found is None:
+        kinds = store.document_types(conn, case_id)
+        if "bill" in kinds:
+            return (Message(COVER_NEEDS_POLICY),)
+        return None  # no bill yet: her policy wording answers what it covers
+    sections = [COVER_INTRO, _split_lines(found["split"])]
+    if found["split"] and found["split"]["conditional"]:
+        sections.append(COVER_IF)
+    reasons = [m["text"] for m in found["messages"]] + [f["message"] for f in found["papers"]["findings"]]
+    sections.append("\n".join([COVER_HEADLINES.get(found["outcome"], COVER_HEADLINES[le.FACTS_PENDING])] + reasons))
+    asked = [q["question"] for q in found["questions"] if q["required"]]
+    if asked:
+        sections.append(COVER_ASK.format(questions=" ".join(asked)))
+    sections.append(COVER_CAVEAT)
+    unverified = found["unverified"] or any(f["unverified"] for f in found["papers"]["findings"])
+    return (Message("\n\n".join(sections), unverified=unverified),)
+
+
+def _split_lines(split: dict | None) -> str:
+    """The bill split as lines: total, what comes off, then the insurer's share and hers."""
+    if split is None:
+        return COVER_NO_TOTAL
+    lines = [COVER_BILLED.format(amount=ladders.inr(split["billed"]))]
+    if not split["covered"]:
+        return "\n".join(lines + [COVER_NOTHING.format(amount=ladders.inr(split["you_pay"]))])
+    lines += [
+        "- " + label.format(amount=ladders.inr(split[part]), percent=f"{split['co_pay_percent']:g}" if split["co_pay_percent"] else "")
+        for part, label in COVER_PARTS if split[part]
+    ]
+    lines += [COVER_INSURER.format(amount=ladders.inr(split["insurer_pays"])),
+              COVER_YOU.format(amount=ladders.inr(split["you_pay"]))]
+    return "\n".join(lines)
+
+
 def _letter(conn: Store, case: dict, language: str) -> tuple[Message, ...]:
     """The draft letter, read back in her language. Nothing is sent."""
     from app.services import drafts
@@ -503,17 +589,21 @@ def forget_documents(case_id: str) -> None:
     mine.forget(case_id)
 
 
-def _note_respondent(conn, case_id: str, attachment: Attachment, filename: str, data: bytes, pages) -> None:
-    """A policy or insurer letter she sent: read its fields once so the insurer's legal name can
-    address a letter. The name still has to clear the confidence gate in cases.respondent_names."""
+def _read_fields(conn, case_id: str, attachment: Attachment, filename: str, data: bytes, pages, product) -> None:
+    """Read the fields of a health policy or hospital bill she sent, so "will this be covered?" can be
+    checked by the engine; and of an insurer's letter while the insurer's legal name is unknown, so a
+    letter can be addressed. Every value still has to clear the confidence gate before it is used."""
     doc_type = documents.detect_doc_type(pages[0][1])
-    if doc_type not in ("policy", "letter") or routing.INSURER in cases.respondent_names(conn, case_id):
+    if doc_type in ("policy", "bill"):
+        if product not in (None, "health_policy"):
+            return  # the claim check is for health; a bike or life policy is only explained
+    elif doc_type != "letter" or routing.INSURER in cases.respondent_names(conn, case_id):
         return
     try:
         extraction = documents.extract(data, filename, doc_type, mime_type=attachment.content_type)
         store.save_document(conn, case_id, extraction, original=data, filename=filename)
     except Exception as exc:  # a failed read leaves the name unknown, never a crash
-        logger.info("Could not read the insurer's name from a chat document: %s", exc)
+        logger.info("Could not read the fields of a chat document: %s", exc)
 
 
 def _explain(
@@ -545,7 +635,7 @@ def _explain(
         read.append(mine.add(case_id, filename, pages, product))
         store.save_pages(conn, case_id, filename, product, pages)  # consent was checked before this runs
         if not buying:
-            _note_respondent(conn, case_id, attachment, filename, data, pages)
+            _read_fields(conn, case_id, attachment, filename, data, pages, product)
 
         # A health claim document still ticks its checklist slot, quietly; a bike, life or other
         # policy never fills the health claim checklist.

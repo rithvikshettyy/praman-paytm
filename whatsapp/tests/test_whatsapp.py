@@ -186,7 +186,8 @@ def test_yes_reads_the_waiting_photo_and_summarises_with_citations(env):
     post(payload(media_msg("image", mid="a")))
     post(payload(text_msg("YES", mid="b")))
     bodies = [body for _, body in env.texts]
-    assert any("sum insured of Rs 5,00,000" in b and "[Your document, policy.pdf, p.1]" in b for b in bodies)
+    assert any("sum insured of Rs 5,00,000" in b and "📄" not in b for b in bodies)
+    assert not any("[Your document" in b for b in bodies)  # no page labels on WhatsApp
     assert conversation.READ_IT in bodies
 
 
@@ -700,3 +701,8 @@ def test_her_own_documents_come_before_a_web_search(env, monkeypatch):
     post(payload(media_msg("image", mid="p2", caption="policy")))
     post(payload(text_msg("what is the room rent limit", mid="q1")))
     assert calls == []
+
+
+def test_a_long_answer_is_one_sentence_per_line():
+    text = "This is a bill from Example Hospital [Your document, bill.jpg, p.1]. It totals Rs. 1,84,500 [Your document, bill.jpg, p.1].\n\nAsk me more."
+    assert channel._readable(text) == "This is a bill from Example Hospital.\nIt totals Rs. 1,84,500.\n\nAsk me more."

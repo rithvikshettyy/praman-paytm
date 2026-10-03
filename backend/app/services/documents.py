@@ -522,7 +522,8 @@ FACT_MAPS: dict[str, dict[str, str]] = {
 _TYPE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "kfs": ("key fact statement", "key facts statement", "annual percentage rate", "cooling-off", "cooling off period"),
     "policy": ("sum insured", "waiting period", "policy schedule", "policy wording", "pre-existing disease", "co-payment"),
-    "bill": ("final bill", "interim bill", "room charges", "pharmacy", "bill no", "inpatient bill", "discharge bill"),
+    "bill": ("final bill", "interim bill", "room charges", "pharmacy", "bill no", "inpatient bill", "discharge bill",
+             "hospital bill", "ipd bill", "bill date", "grand total"),
     "letter": ("we regret", "repudiat", "claim has been rejected", "claim is rejected", "dear"),
 }
 
@@ -813,6 +814,15 @@ def trusted_values(fields: dict[str, Field], gate: float | None = None) -> dict[
     Anything below the gate is left out, so a misread name or date is never flagged as a mismatch."""
     gate = config.CONFIDENCE_GATE if gate is None else gate
     return {name: f.value for name, f in fields.items() if f.value is not None and f.confidence >= gate}
+
+
+def stored_fields(doc_type: str, stored: dict[str, Any]) -> dict[str, Field]:
+    """Fields saved by ``store.save_document`` (dates as text) typed back into ``Field``s."""
+    specs = _SPECS_BY_NAME[doc_type]
+    return {
+        name: Field(_coerce(specs[name], read.get("value")), _confidence(read.get("confidence")))
+        for name, read in stored.items() if name in specs
+    }
 
 
 # --- Extraction end to end ---------------------------------------------------
