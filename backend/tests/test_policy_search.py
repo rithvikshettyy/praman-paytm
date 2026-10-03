@@ -13,6 +13,9 @@ TEXT = "Care Supreme covers 4 members. Sum insured 5,00,000 available. No room r
 @pytest.fixture(autouse=True)
 def fresh(monkeypatch):
     policy_search._CACHE.clear()
+    policy_search._PAGES.clear()
+    monkeypatch.setattr(config, "FIRECRAWL_API_KEY", "")
+    monkeypatch.setattr(config, "POLICY_SEARCH_DOMAINS", ())  # whatever backend/.env says
     monkeypatch.setattr(policy_search.i18n, "translate", lambda text, language, **k: text)
     yield
     policy_search._CACHE.clear()
@@ -127,3 +130,89 @@ def test_firecrawl_drops_pages_from_other_sites_and_sends_the_allowlist(monkeypa
     pages = firecrawl.search("q", domains=("insure.example",))
     assert [p["url"] for p in pages] == ["https://www.insure.example/a", "https://sub.insure.example/b"]
     assert sent["includeDomains"] == ["insure.example"]
+
+
+SITE = "insure.example"
+
+
+def insurer_pages(monkeypatch, loads=lambda url: True):
+    """Insurer pages on SITE; `loads` says which of them come back."""
+    monkeypatch.setattr(config, "POLICY_SEARCH_DOMAINS", (SITE,))
+    scraped = []
+
+    def scrape(url):
+        scraped.append(url)
+        return {"title": "t", "url": url, "markdown": TEXT} if loads(url) else None
+
+    monkeypatch.setattr(firecrawl, "scrape", scrape)
+    monkeypatch.setattr(firecrawl, "search", lambda *a, **k: pytest.fail("fell back to search"))
+    return scraped
+
+
+def test_the_insurer_pages_of_the_site_are_read_before_any_search(monkeypatch):
+    scraped = insurer_pages(monkeypatch)
+    monkeypatch.setattr(sarvam, "chat_json", lambda *a, **k: {"options": [option(url=scraped[0])]})
+    text = policy_search.suggest("health")
+    assert text and f"[{SITE}]" in text
+    assert 1 <= len(scraped) <= policy_search._TRY and all(u.startswith(f"https://{SITE}/health-insurance/") for u in scraped)
+
+
+def test_pages_that_do_not_load_are_skipped_and_at_most_four_are_read(monkeypatch):
+    insurer_pages(monkeypatch, loads=lambda url: "care" not in url)
+    pages = policy_search._insurer_pages("health")
+    assert 0 < len(pages) <= policy_search._KEEP and not any("care" in p["url"] for p in pages)
+
+
+def test_the_insurer_pages_are_kept_for_a_while(monkeypatch):
+    scraped = insurer_pages(monkeypatch)
+    policy_search._insurer_pages("life")
+    n = len(scraped)
+    policy_search._insurer_pages("life")
+    assert len(scraped) == n
+
+
+def test_when_no_insurer_page_loads_the_search_is_used(monkeypatch):
+    insurer_pages(monkeypatch, loads=lambda url: False)
+    sent = []
+    monkeypatch.setattr(firecrawl, "search", lambda q, limit=5, domains=(): sent.append(domains) or [{"title": "t", "url": PAGE, "markdown": TEXT}])
+    monkeypatch.setattr(sarvam, "chat_json", lambda *a, **k: {"options": [option()]})
+    assert policy_search.suggest("health") and sent == [(SITE,)]
+
+
+def test_no_site_set_means_no_insurer_pages(monkeypatch):
+    monkeypatch.setattr(firecrawl, "scrape", lambda url: pytest.fail("scraped"))
+    assert policy_search._insurer_pages("health") == []
+
+
+def test_every_kind_has_pages_listed():
+    import yaml
+    kinds = yaml.safe_load(config.POLICY_PAGES_FILE.read_text(encoding="utf-8"))["kinds"]
+    assert set(kinds) == set(policy_search.KINDS) and all(len(v) >= policy_search._KEEP for v in kinds.values())
+
+
+def test_scrape_returns_readable_text_and_skips_a_404(monkeypatch):
+    monkeypatch.setattr(config, "FIRECRAWL_API_KEY", "k")
+    replies = iter([
+        {"data": {"markdown": "![x](http://i/p.png) See [Care Joy](http://a/b) plan", "metadata": {"statusCode": 200, "title": "T"}}},
+        {"data": {"markdown": "# 404", "metadata": {"statusCode": 404}}},
+    ])
+
+    class Resp:
+        def __init__(self, body): self.body = body
+        def raise_for_status(self): pass
+        def json(self): return self.body
+
+    monkeypatch.setattr(firecrawl.httpx, "post", lambda *a, **k: Resp(next(replies)))
+    page = firecrawl.scrape("https://insure.example/a")
+    assert page["markdown"] == "See Care Joy plan" and page["title"] == "T"
+    assert firecrawl.scrape("https://insure.example/b") is None
+    monkeypatch.setattr(config, "FIRECRAWL_API_KEY", "")
+    assert firecrawl.scrape("https://insure.example/a") is None
+
+
+def test_the_option_text_is_translated_but_names_and_sites_are_not(monkeypatch):
+    serve(monkeypatch, [option()])
+    monkeypatch.setattr(policy_search.i18n, "translate", lambda text, language, **k: f"[{language}] {text}")
+    text = policy_search.suggest("health", language="hi-IN")
+    assert "Care Supreme (Care): [hi-IN] Covers 4 members. [care.example]" in text
+    assert text.startswith("[hi-IN] Options found online")

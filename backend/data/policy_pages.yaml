@@ -1,0 +1,28 @@
+# Insurer pages the "Find a policy" journey reads, per kind of insurance. Paths only: the site is the
+# first host in POLICY_SEARCH_DOMAINS (backend/.env). A page that no longer loads is skipped.
+# Picked from the site's own search results on 2026-10-03; not checked against any insurer.
+verified_by: UNVERIFIED
+kinds:
+  health:
+    - /health-insurance/companies/care/
+    - /health-insurance/companies/niva-bupa/
+    - /health-insurance/companies/star/
+    - /health-insurance/companies/hdfc-ergo/
+    - /health-insurance/companies/icici-lombard/
+    - /health-insurance/companies/bajaj-allianz/
+    - /health-insurance/companies/raheja-qbe/
+  life:
+    - /term-insurance/companies/lic/
+    - /term-insurance/companies/tata-aia/
+    - /term-insurance/companies/max/
+    - /term-insurance/companies/hdfc-life/
+    - /term-insurance/companies/icici-prudential/
+    - /term-insurance/plans/indiafirst-term-insurance/
+  motor:
+    - /car-insurance/companies/hdfc-ergo/
+    - /car-insurance/companies/icici-lombard/
+    - /car-insurance/companies/liberty/
+    - /car-insurance/companies/national/
+    - /two-wheeler-insurance/companies/bajaj-allianz/
+    - /two-wheeler-insurance/companies/shriram/
+    - /two-wheeler-insurance/companies/acko/
