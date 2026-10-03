@@ -166,3 +166,8 @@ def validate() -> list[str]:
     if not SARVAM_API_KEY:
         problems.append("SARVAM_API_KEY is not set - every Sarvam call will fail.")
     return problems
+
+# --- Web search for the buying journey -----------------------------------------
+# Firecrawl finds policies online (Sarvam cannot browse). Blank key = feature off; the old text answers.
+FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+FIRECRAWL_TIMEOUT = _float("FIRECRAWL_TIMEOUT", 45.0)

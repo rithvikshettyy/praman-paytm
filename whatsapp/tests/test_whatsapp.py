@@ -413,7 +413,11 @@ def test_choosing_an_option_records_it_and_says_what_to_send(env, journey):
     case = store.find_case_for_user(conn, USER)
     assert store.latest_event(conn, case["id"], "journey_chosen")["detail"] == {"journey": journey}
     conn.close()
-    assert env.texts == [(NUMBER, conversation.JOURNEY_OPENINGS[journey])]
+    if journey == "find":  # the kind of insurance comes first, as buttons
+        assert env.texts == [] and env.buttons[-1][1] == conversation.OPEN_FIND
+        assert [b[0] for b in env.buttons[-1][2]] == ["kind:health", "kind:life", "kind:motor"]
+    else:
+        assert env.texts == [(NUMBER, conversation.JOURNEY_OPENINGS[journey])]
 
 
 def classify(monkeypatch, **payload):
@@ -643,3 +647,56 @@ def test_delete_everything_does_not_restart_onboarding(env):
 
 def test_the_welcome_mentions_reset():
     assert "reset" in conversation.WELCOME
+
+
+def web_found(monkeypatch, text="1. Care Supreme (Care) [care.example] Send your needs"):
+    from app.services import policy_search
+
+    calls = []
+
+    def suggest(kind, requirements=None, language="en-IN"):
+        calls.append((kind, requirements))
+        return text
+
+    monkeypatch.setattr(policy_search, "suggest", suggest)
+    return calls
+
+
+def test_tapping_a_kind_records_it_and_shows_options_found_online(env, monkeypatch):
+    calls = web_found(monkeypatch)
+    choose("find")
+    post(payload(tap("kind:life", mid="k1")))
+    conn = store.connect()
+    case = store.find_case_for_user(conn, USER)
+    assert store.latest_event(conn, case["id"], "find_kind")["detail"] == {"kind": "life"}
+    conn.close()
+    assert calls == [("life", None)]
+    assert "care.example" in env.texts[-1][1] and conversation.UNVERIFIED_BADGE in env.texts[-1][1]
+
+
+def test_her_needs_narrow_the_kind_she_picked_and_health_is_the_default(env, monkeypatch):
+    calls = web_found(monkeypatch)
+    choose("find")
+    post(payload(text_msg("family of four, Pune", mid="n1")))
+    post(payload(tap("kind:motor", mid="k2")))
+    post(payload(text_msg("a bike, 2 years old", mid="n2")))
+    assert calls == [("health", "family of four, Pune"), ("motor", None), ("motor", "a bike, 2 years old")]
+
+
+def test_when_the_web_gives_nothing_the_old_answer_stands(env, monkeypatch):
+    from app.rag.answer import Answer
+
+    web_found(monkeypatch, text=None)
+    monkeypatch.setattr(conversation, "_ask", lambda q, **k: Answer("no_source", "", "", (), False, None, "en-IN", False))
+    choose("find")
+    post(payload(tap("kind:health", mid="k3")))
+    assert env.texts[-1][1] == conversation.WHAT_TO_LOOK_FOR
+
+
+def test_her_own_documents_come_before_a_web_search(env, monkeypatch):
+    calls = web_found(monkeypatch)
+    choose("find")
+    consent()
+    post(payload(media_msg("image", mid="p2", caption="policy")))
+    post(payload(text_msg("what is the room rent limit", mid="q1")))
+    assert calls == []

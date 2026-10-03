@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from app import config, conversation, store
 from app.clients import sarvam
 from app.conversation import (
-    CONSENT_PROMPT, JOURNEY_OPENINGS, MENU_BUTTONS, MENU_PROMPT, UNVERIFIED_BADGE, WELCOME, Message,
+    CONSENT_PROMPT, FIND_KIND_BUTTONS, JOURNEY_OPENINGS, MENU_BUTTONS, MENU_PROMPT, UNVERIFIED_BADGE, WELCOME, Message,
 )
 from app.services import documents, i18n
 from app.services.documents import UploadRejected
@@ -245,7 +245,8 @@ def _onboard(inbound: meta.Inbound, text: str, voice: bool = False) -> bool:
         choice = text.removeprefix("journey:") if text.startswith("journey:") else None
         if choice in JOURNEY_OPENINGS:
             store.record_event(conn, case["id"], "journey_chosen", {"journey": choice})
-            deliver(user, language, Message(JOURNEY_OPENINGS[choice]), voice=voice)
+            buttons = FIND_KIND_BUTTONS if choice == "find" else ()
+            deliver(user, language, Message(JOURNEY_OPENINGS[choice], buttons=buttons), voice=voice)
             return True
         return False
     finally:

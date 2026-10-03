@@ -96,9 +96,10 @@ MENU_PROMPT = "What would you like to do?"
 MENU_BUTTONS = (("journey:find", "Find a policy"), ("journey:check", "Check my policy"),
                 ("journey:complain", "Complaint"))
 OPEN_FIND = (
-    "Tell me who the policy is for and what matters to you, and I will say what to look for. Or send the "
-    "policy or quote you are considering, and send two or more to compare them."
+    "Which insurance are you looking for? Or send the policy or quote you are considering, and send two or "
+    "more to compare them."
 )
+FIND_KIND_BUTTONS = (("kind:health", "Health"), ("kind:life", "Life"), ("kind:motor", "Motor"))
 OPEN_CHECK = "Send a photo or PDF of your policy, then ask me anything about it."
 OPEN_COMPLAIN = "Tell me what went wrong, in your own words. If you have the policy or the insurer's letter, send it too."
 JOURNEY_OPENINGS = {"find": OPEN_FIND, "check": OPEN_CHECK, "complain": OPEN_COMPLAIN}
@@ -298,11 +299,30 @@ def _letter(conn: Store, case: dict, language: str) -> tuple[Message, ...]:
     return (Message(draft["readback"], localized=True), Message(DRAFT_NOT_SENT))
 
 
+def _web_options(conn: Store, case_id: str, text: str, language: str) -> tuple[Message, ...] | None:
+    """Policies found online: a kind button, or her needs for the kind she picked (health if none)."""
+    from app.services import policy_search
+
+    if text.startswith("kind:"):
+        kind, needs = text.removeprefix("kind:"), None
+        if kind not in policy_search.KINDS:
+            return None
+        store.record_event(conn, case_id, "find_kind", {"kind": kind})
+    else:
+        picked = store.latest_event(conn, case_id, "find_kind")
+        kind, needs = (picked["detail"].get("kind") if picked else "health"), text
+    found = policy_search.suggest(kind, needs, language)
+    return (Message(found, unverified=True, localized=True),) if found else None
+
+
 def _find_text(conn: Store, case: dict, text: str, language: str) -> tuple[Message, ...] | None:
     """Buying journey, text only: her documents first; else the regulation corpus (no insurer or
     product, so no insurer's wording is used); else what to look for."""
     if _has_hers(case["id"]):
         return _ask_hers(conn, case["id"], text, language)
+    options = None if _normalised(text) in _GREETINGS | _THANKS else _web_options(conn, case["id"], text, language)
+    if options:
+        return options
     result = _ask(text, language=language)
     answer_id = _log_answer(conn, case["id"], text, result, "sources")
     if result.status == "answered":
