@@ -106,6 +106,8 @@ def api_health():
             "sarvam_configured": bool(config.SARVAM_API_KEY),
             "chat_model": config.CHAT_MODEL,
             "supported_languages": sorted(config.SUPPORTED_LANGUAGES),
+            # Find a policy: off unless both are set; the sites are hostnames, never a secret.
+            "policy_search": {"firecrawl": bool(config.FIRECRAWL_API_KEY), "sites": list(config.POLICY_SEARCH_DOMAINS)},
         },
         status_code=503 if problems else 200,
     )
