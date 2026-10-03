@@ -25,7 +25,6 @@ class FakeResponse:
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(config, "N8N_DISPATCH_URL", "https://n8n.example/webhook/praman")
     monkeypatch.setattr(config, "N8N_SECRET", SECRET)
@@ -137,8 +136,9 @@ def test_the_letter_is_redacted_before_it_leaves(posted):
     draft_id = approved_draft()
     conn = store.connect()
     try:
-        conn.execute("UPDATE drafts SET text = text || ?", ("\nMy PAN is ABCDE1234F.",))
-        conn.commit()
+        draft = store.get_draft(conn, CASE, draft_id)
+        conn.db.drafts.update_one(
+            {"id": draft_id, "case_id": CASE}, {"$set": {"text": draft["text"] + "\nMy PAN is ABCDE1234F."}})
     finally:
         conn.close()
     send(draft_id)

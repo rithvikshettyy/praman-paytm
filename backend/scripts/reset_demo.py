@@ -2,7 +2,7 @@
 
     python scripts/reset_demo.py        (from backend/)
 
-Deletes every case in the store at PRAMAN_DB_PATH (default backend/.local/praman.db),
+Deletes every case in the MongoDB database MONGO_DB (default praman) at MONGO_URI,
 including any made live during a rehearsal, and every kept original. Then seeds and
 prints the console headline. A running server needs no restart.
 """
@@ -28,7 +28,7 @@ def main() -> int:
         headline = console.metrics(conn)["headline"]["text"]
     finally:
         conn.close()
-    print(f"wiped {wiped} case(s) from {config.STORE_PATH}")
+    print(f"wiped {wiped} case(s) from MongoDB database {config.MONGO_DB}")
     print(f"seeded {', '.join(seed_demo.EXAMPLES)}")
     print(f"console: {headline}")
     print(f"done in {time.perf_counter() - started:.1f}s")

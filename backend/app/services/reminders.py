@@ -11,12 +11,12 @@ the dates to remind on, the case id. No policy number, no document text, no phon
 from __future__ import annotations
 
 import re
-import sqlite3
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Callable
 
 from app import config, store
+from app.store import Store
 from app.services import n8n
 
 CONSENT = "premium_reminders"
@@ -89,7 +89,7 @@ def masked_email(address: str | None = None) -> str:
 
 
 def schedule(
-    conn: sqlite3.Connection,
+    conn: Store,
     case_id: str,
     due: date,
     today: date | None = None,
@@ -116,7 +116,7 @@ def schedule(
     return {"reminder_id": reminder_id, **_log(due, remind_on)}
 
 
-def current(conn: sqlite3.Connection, case_id: str) -> dict | None:
+def current(conn: Store, case_id: str) -> dict | None:
     """The reminder still in force: the latest one set, unless she cancelled it afterwards."""
     scheduled = store.latest_event(conn, case_id, "reminder_scheduled")
     if scheduled is None:
@@ -127,7 +127,7 @@ def current(conn: sqlite3.Connection, case_id: str) -> dict | None:
     return scheduled["detail"]
 
 
-def cancel(conn: sqlite3.Connection, case_id: str) -> bool:
+def cancel(conn: Store, case_id: str) -> bool:
     """She asked to stop. True when a reminder was in force. Waiting ones are refused when they wake."""
     if current(conn, case_id) is None:
         return False
@@ -148,7 +148,7 @@ def message(due: date, on: date) -> tuple[str, str]:
     )
 
 
-def due(conn: sqlite3.Connection, case_id: str, reminder_id: str, on: str) -> dict:
+def due(conn: Store, case_id: str, reminder_id: str, on: str) -> dict:
     """The workflow woke for one reminder date. It goes out only if the case, her consent and this
     reminder are all still in force, and that date was not already sent."""
     if store.get_case(conn, case_id) is None:

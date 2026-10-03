@@ -20,13 +20,13 @@ reported it went out, nothing more.
 from __future__ import annotations
 
 import hmac
-import sqlite3
 from datetime import date, timedelta
 from typing import Callable
 
 import httpx
 
 from app import cases, config, store
+from app.store import Store
 from app.core import ladders, routing
 from app.services.redact import redact
 
@@ -50,7 +50,7 @@ def authentic(header: str | None) -> bool:
     return bool(config.N8N_SECRET) and hmac.compare_digest(header or "", config.N8N_SECRET)
 
 
-def _route(conn: sqlite3.Connection, case_id: str) -> routing.Route | None:
+def _route(conn: Store, case_id: str) -> routing.Route | None:
     routed = (store.latest_event(conn, case_id, "case_routed") or {}).get("detail") or {}
     if not routed.get("respondent"):
         return None
@@ -70,7 +70,7 @@ def _post(url: str, payload: dict) -> None:
         raise DeliveryUnavailable("The delivery workflow did not accept the letter.") from exc
 
 
-def dispatch(conn: sqlite3.Connection, case_id: str, draft_id: int, post: Callable[[str, dict], None] = _post) -> dict:
+def dispatch(conn: Store, case_id: str, draft_id: int, post: Callable[[str, dict], None] = _post) -> dict:
     """Hand an approved letter to the n8n workflow. Refused without approval and her consent."""
     if not config.N8N_DISPATCH_URL or not config.N8N_SECRET:
         raise NotConfigured("Sending is not set up on this server.")
@@ -108,7 +108,7 @@ def _clock_view(event: dict | None) -> dict | None:
     return {"step": detail.get("step"), "respond_by": detail.get("respond_by"), "verified_by": detail.get("verified_by")}
 
 
-def delivered(conn: sqlite3.Connection, case_id: str, draft_id: int, channel: str, today: date | None = None) -> dict:
+def delivered(conn: Store, case_id: str, draft_id: int, channel: str, today: date | None = None) -> dict:
     """n8n confirms the letter went out. Marks it sent and starts the clock on the step it was addressed to."""
     draft = store.get_draft(conn, case_id, draft_id)
     if draft is None:
@@ -126,7 +126,7 @@ def delivered(conn: sqlite3.Connection, case_id: str, draft_id: int, channel: st
     return {"draft_id": draft_id, "status": "sent", "clock": _clock_view(store.latest_event(conn, case_id, "clock_started"))}
 
 
-def failed(conn: sqlite3.Connection, case_id: str, draft_id: int, reason: str) -> dict:
+def failed(conn: Store, case_id: str, draft_id: int, reason: str) -> dict:
     """n8n gave up after its retries. The letter goes back to approved so she can send it again."""
     if store.get_draft(conn, case_id, draft_id) is None:
         raise LookupError(f"no draft {draft_id} on case {case_id}")
@@ -140,7 +140,7 @@ def _stop(reason: str) -> dict:
 
 
 def clock_due(
-    conn: sqlite3.Connection,
+    conn: Store,
     case_id: str,
     notify: Callable[[dict, str], None] | None = None,
     today: date | None = None,

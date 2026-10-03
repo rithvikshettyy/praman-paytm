@@ -27,7 +27,7 @@ from app import config
 from app.clients import sarvam
 from app.core import routing
 from app.rag import retrieve as retrieval
-from app.services import i18n
+from app.services import i18n, safety
 
 logger = logging.getLogger(__name__)
 
@@ -81,13 +81,6 @@ Rules:
 Reply as JSON: {"answer": "<answer with [S#] citations>", "sources": ["S1", ...]}"""
 
 _MARKER = re.compile(r"\[\s*(S\d+(?:\s*,\s*S\d+)*)\s*\]")
-_SENTENCE = re.compile(r"(?<=[.!?।])\s+")
-_PROMISE_WORDS = re.compile(r"\b(?:guarantee\w*|definitely|certainly|surely)\b", re.IGNORECASE)
-_OUTCOME = re.compile(
-    r"\b(?:will|shall|is going to|are going to)\b.*\b(?:approved?|paid|pay|accept\w*|settle\w*|sanction\w*|reimburs\w*)\b",
-    re.IGNORECASE,
-)
-_HER = re.compile(r"\b(?:you|your)\b", re.IGNORECASE)
 _CITATION = r"\[[^\[\]]+, [^\[\]]+, p\.\d+\]"
 # What is left of a placeholder the translator mangled. [[0]] was chosen because Sarvam keeps it
 # whole in every language tried; the earlier ZQ0ZQ was spelled out in Devanagari (झेडक्यू0).
@@ -100,10 +93,6 @@ _PROTECT = re.compile(
     # periods and sums: the number is kept, the unit is translated ("24 hours" -> "24 तास")
     r"|\d[\d,]*(?:\.\d+)?(?=\s(?:months?|days?|years?|hours?|lakhs?|crores?)\b)"
 )
-
-
-def _promises(sentence: str) -> bool:
-    return bool(_PROMISE_WORDS.search(sentence) or (_HER.search(sentence) and _OUTCOME.search(sentence)))
 
 
 def _source_line(sid: str, passage: retrieval.Passage) -> str:
@@ -247,7 +236,7 @@ def answer(
         return _no_source(language, product, names)
 
     # Drop any sentence that promises an outcome; the insurer decides, not us.
-    kept = " ".join(s for s in _SENTENCE.split(raw) if s.strip() and not _promises(s)).strip()
+    kept = safety.drop_promises(raw)
 
     cited: list[str] = []
     for match in _MARKER.finditer(kept):

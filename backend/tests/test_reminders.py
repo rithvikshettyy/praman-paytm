@@ -27,7 +27,6 @@ class FakeResponse:
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(config, "N8N_REMINDER_URL", "https://n8n.example/webhook/reminder")
     monkeypatch.setattr(config, "N8N_SECRET", SECRET)

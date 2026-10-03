@@ -11,10 +11,10 @@ ever calls it filed.
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Mapping
 
 from app import cases, config, store
+from app.store import Store
 from app.core import ladder_engine as le
 from app.core import ladders, routing
 from app.core.routing import Route, StepWindow
@@ -53,7 +53,7 @@ def addressee(route: Route | None, steps: Mapping[str, StepWindow], step: str | 
     return f"{steps[step].label}, {route.respondent_name}"
 
 
-def compose(conn: sqlite3.Connection, case_id: str, language: str | None = None) -> dict:
+def compose(conn: Store, case_id: str, language: str | None = None) -> dict:
     """Draft the next letter for a case, save it as drafted, and log it."""
     case = store.get_case(conn, case_id)
     if case is None:
@@ -106,7 +106,7 @@ def compose(conn: sqlite3.Connection, case_id: str, language: str | None = None)
     return {**draft, "readback": i18n.translate(text, reader), "readback_language": reader}
 
 
-def approve(conn: sqlite3.Connection, case_id: str, draft_id: int) -> dict:
+def approve(conn: Store, case_id: str, draft_id: int) -> dict:
     """She approved the draft: it is approved and ready to send. Nothing is sent."""
     draft = store.approve_draft(conn, case_id, draft_id)
     if draft is None:

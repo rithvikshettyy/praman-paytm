@@ -64,7 +64,7 @@ technology.
 avoidable rejections before they happen."** Same feature. One sounds like a no, the
 other sounds like revenue protection.
 
-**What we do not do:** recommend which loan or policy to buy, predict approval, file
+**What we do not do:** rank insurers or tell her which loan or policy to buy (the buying journey may list policies found online, unranked and marked unverified, for her to check), predict approval, file
 anything automatically, or put the sponsor's name in the product name.
 
 ---

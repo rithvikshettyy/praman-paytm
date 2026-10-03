@@ -123,9 +123,9 @@ flowchart LR
 | C3, N2 | Extraction for policy, bill, letter and loan key fact statement; detecting the document type; confidence gate | `backend/app/services/documents.py` |
 | C5 | `verified_by` everywhere, the verification report, badges in every reply | `backend/scripts/verify_report.py` |
 | C6 | "Approved and ready to send", never "filed"; enforced by a test | `backend/tests/test_wording.py` |
-| C7 | SQLite store: cases, documents, consents, events, drafts | `backend/app/store.py` |
+| C7 | MongoDB store: cases, documents, consents, events, drafts, chat transcript, document text | `backend/app/store.py` |
 | N1 | Health-claim readiness ladder: waiting period, exclusion, lapse, room cap, documents, PED cap, moratorium | `backend/data/ladders/insurance_health_claim.yaml` |
-| N3 | Document checklist over WhatsApp: photos tick slots, with a numbered-list fallback | `backend/app/cases.py`, `backend/app/channels/whatsapp.py` |
+| N3 | Document checklist over WhatsApp: photos tick slots, with a numbered-list fallback | `backend/app/cases.py`, `whatsapp/channel.py` |
 | N5 | Respondent router with per-respondent ladders and clocks | `backend/app/core/routing.py` |
 | N6 | Consent, redaction, delete everything | `backend/app/conversation.py`, `backend/app/services/redact.py` |
 | N8 | Distributor console: headline, eleven counters, case list with Resolved or Pending per case, and a one-screen brief for every case | `backend/app/console.py`, `backend/app/handoff.py`, `frontend/app/console` |
@@ -140,7 +140,7 @@ Not built yet, and presented as next steps:
 
 ### Stack
 
-- **Backend:** Python 3.11 and FastAPI, with SQLite for storage.
+- **Backend:** Python 3.11 and FastAPI, with MongoDB for storage (local: `docker run -d -p 27017:27017 mongo:7`, or an Atlas `MONGO_URI` in `backend/.env`).
 - **AI:** Sarvam for everything:
   - chat and classification;
   - Doc AI to read documents;
@@ -262,7 +262,7 @@ The corpus ships with one example policy wording, labelled as an example, so the
 
 ### WhatsApp (Meta Cloud API)
 
-All of it lives in `whatsapp/`; the backend mounts it. Settings go in `whatsapp/.env` (copy `whatsapp/.env.example`), separate from `backend/.env`.
+All of it lives in `whatsapp/`; the backend mounts it. Its settings sit in the same `backend/.env` as everything else (the `WA_*` block in `backend/.env.example`); there is one env file, and on a host they are ordinary environment variables.
 
 1. At developers.facebook.com, create an app and add the WhatsApp product. Note the phone number id, and create a permanent system-user token (the test token lasts 24 hours).
 2. Set `WA_TOKEN`, `WA_PHONE_NUMBER_ID`, `WA_APP_SECRET` (App settings, Basic) and `WA_VERIFY_TOKEN` (any string you choose).

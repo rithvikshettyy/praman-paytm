@@ -19,7 +19,6 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"x" * 16
 
 @pytest.fixture(autouse=True)
 def env(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "STORE_PATH", tmp_path / "praman.db")
     monkeypatch.setattr(config, "ORIGINALS_DIR", tmp_path / "originals")
     monkeypatch.setattr(config, "DISTRIBUTOR_LEGAL_NAME", "Example Broking Pvt Ltd")
     monkeypatch.setattr(config, "DISTRIBUTOR_SHORT_NAME", "Paytm")

@@ -45,7 +45,10 @@ def _bool(name: str, default: bool = False) -> bool:
 
 
 # --- Store ------------------------------------------------------------------
-STORE_PATH = Path(os.environ.get("PRAMAN_DB_PATH", LOCAL_DIR / "praman.db"))
+# MongoDB holds the cases, the chats and the text of her documents.
+# Local: docker run -d -p 27017:27017 mongo:7
+MONGO_URI = os.environ.get("MONGO_URI", "").strip() or "mongodb://localhost:27017"
+MONGO_DB = os.environ.get("MONGO_DB", "").strip() or "praman"
 # Originals land here only when the user consents to keep them (C7).
 ORIGINALS_DIR = LOCAL_DIR / "originals"
 # The website's words in each language, translated once by Sarvam and reused (git-ignored).
@@ -181,3 +184,11 @@ def validate() -> list[str]:
     if not SARVAM_API_KEY:
         problems.append("SARVAM_API_KEY is not set - every Sarvam call will fail.")
     return problems
+
+# --- Web search for the buying journey -----------------------------------------
+# Firecrawl finds policies online (Sarvam cannot browse). Blank key = feature off; the old text answers.
+FIRECRAWL_API_KEY = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+FIRECRAWL_TIMEOUT = _float("FIRECRAWL_TIMEOUT", 45.0)
+# Sites the policy search may read (comma-separated hostnames; subdomains count): the distributor's own
+# insurance pages. Set in backend/.env, never here. Blank = the whole web.
+POLICY_SEARCH_DOMAINS = tuple(d.strip().lower() for d in os.environ.get("POLICY_SEARCH_DOMAINS", "").split(",") if d.strip())
