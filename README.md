@@ -4,7 +4,7 @@
 
 *Praman* (प्रमाण) means proof. It is an assistant for Indian policyholders and borrowers, used over WhatsApp or the web, in their own language. Before she files a health insurance claim, it tells her whether the claim will be stopped and, if not, how much will be cut and why. When something has already gone wrong, it works out who owes her the answer (the insurer, the lender or the distributor) and drafts the letter to them by name.
 
-> Prototype built for a hackathon demo. All data in this repository is labelled example data. Nothing here is filed or sent anywhere.
+> Prototype built for a hackathon demo. All data in this repository is labelled example data. Praman never files anything. A letter leaves only after she approves it and agrees to it being sent, and then only through n8n (see below).
 
 ---
 
@@ -41,8 +41,8 @@ A distributor sits in the middle. The customer paid the distributor, so she asks
   - A pure router maps each situation to the insurer, the lender or the distributor, with that party's own escalation ladder and clock.
   - The distributor sees only what is genuinely its own.
 - **Shows the distributor its own benefit.**
-  - A console counts, from recorded events only, how many cases needed the distributor and how many went straight to the insurer or lender.
-  - Nothing is projected. "What would this save?" is answered by multiplying that count by the distributor's own cost per ticket.
+  - A console lists, from recorded events only, the cases that need the distributor and the complaints waiting for a person. Each case has a one-screen brief for the agent.
+  - Nothing is projected. The counts (`GET /api/metrics`) are read from event rows, never estimated.
 
 What Praman does not do: recommend a policy or a lender, predict approval, score credit, or file anything automatically.
 
@@ -63,10 +63,12 @@ Three minutes, one phone, in Marathi:
 3. **Leverage.** A second case: a claim rejected for non-disclosure on a policy held for six years.
    - Praman explains the moratorium rule: after five years of continuous cover, a claim cannot be rejected for non-disclosure unless fraud is proved.
    - It reads back a draft to the insurer, addressed by name. She approves it, and the screen says **Approved and ready to send**.
-4. **The distributor's view.** The console shows both cases routed to the insurer, a double-debit case under the distributor, and the headline "Of N cases, X needed the distributor".
+4. **The distributor's view.** The console shows both cases routed to the insurer, a double-debit case under the distributor, and the complaints waiting for a person.
 5. **Delete everything.** She types "delete everything" and the case disappears from the console.
 
 `backend/scripts/reset_demo.py` seeds exactly these example cases in about a second.
+
+The same conversation also runs on a **phone call** and starts from three options on web, WhatsApp and phone: *find a policy*, *check my policy*, *complaint*. A pitch deck (23 slides) is at `frontend/public/deck/index.html` (animated, served at `/deck/index.html`) and `frontend/public/deck/Praman-pitch-deck.pptx` (static copy).
 
 ---
 
@@ -106,7 +108,7 @@ flowchart LR
   - Coverage questions are answered only from her own insurer's documents for her product, or from regulation, with a citation such as `[Example General Insurance, policy_wording, p.2]`.
   - An answer without a valid citation becomes "no source", and the question is handed to the insurer as a written coverage query.
   - Answers never promise approval, and never write to the rule engine's facts.
-- **Nothing is filed.** Praman drafts; she approves. An approved letter is "approved and ready to send". Sending is a partner integration, not something this prototype claims.
+- **Nothing is filed.** Praman drafts; she approves. An approved letter is "approved and ready to send". Only after she also agrees to Praman contacting the insurer does it go to n8n, with account, Aadhaar, PAN and policy numbers masked. It is marked "sent" only when n8n reports delivery, and that never means the insurer received or accepted it.
 - **Privacy by default.**
   - Consent is asked in her language before any document is read.
   - Only the extracted fields are kept, not the file, unless she asks.
@@ -131,12 +133,20 @@ flowchart LR
 | N8 | Distributor console: headline, eleven counters, case list with Resolved or Pending per case, and a one-screen brief for every case | `backend/app/console.py`, `backend/app/handoff.py`, `frontend/app/console` |
 | Self-service | "Did this solve it?" under each answer; a Yes is counted as solved without an agent, a No asks for a person and builds the agent's brief | `backend/app/conversation.py`, `frontend/components/ChatWidget.tsx` |
 | Coverage Q&A | Answers with citations for questions, in her language | `backend/app/rag/` |
+| News layer | Allowlisted RBI and news feeds kept as `news` passages, never verified, never feeding the engine | `backend/app/rag/news.py` |
+| Paper checks, bill split | Patient vs insured names, dates, bill total vs lines, items insurers usually do not pay; then the insurer's and her share of the bill | `backend/app/core/ladder_engine.py`, `backend/app/readiness.py` |
+| Start options | Find a policy (tap-to-answer questions, options found online, unranked), check my policy, complaint; the same three on web, WhatsApp and phone | `backend/app/guided.py`, `backend/app/services/policy_search.py` |
+| Complaints | Registered only on her yes, with how to reach her; Complaints tab in the console | `backend/app/complaints.py`, `frontend/app/console` |
+| Delivery and follow-up | Approved letters sent through n8n with consent and redaction; response clock; callbacks | `backend/app/services/n8n.py`, `n8n/` |
+| Premium reminders | Email reminders only when she asks, with her consent; "stop reminders" cancels | `backend/app/services/reminders.py`, `n8n/` |
+| Phone calls | Sarvam voice agent asks Praman for every answer through one HTTP tool | `backend/app/voice_agent.py`, `voice/` |
+| Pitch deck | 23 slides, HTML and PowerPoint | `frontend/public/deck/` |
 | Web | Demo site: chat with voice, policies, readiness, checklist, case, console | `frontend/` |
 
 Not built yet, and presented as next steps:
 - the lending "fair offer" ruleset (N4; the key-fact-statement extraction schema exists);
 - the motor ruleset (N9);
-- claim and loan deadline reminders (N7).
+- claim and loan deadline rules (N7). Premium reminders by email are built; deadline rules are not.
 
 ### Stack
 
@@ -148,6 +158,9 @@ Not built yet, and presented as next steps:
   - translation and language detection.
 - **Coverage questions:** ChromaDB for search, with local MiniLM embeddings or an offline hashing fallback, and PyMuPDF to read PDFs.
 - **WhatsApp:** Meta Cloud API (Graph API v26.0).
+- **Delivery and reminders:** n8n (Cloud or self-hosted), via two importable workflows in `n8n/`.
+- **Phone:** a Sarvam voice agent built in the Sarvam dashboard (setup in `voice/README.md`).
+- **Find a policy:** Firecrawl, reading only the sites listed in `POLICY_SEARCH_DOMAINS`.
 - **Frontend:** Next.js 16 (App Router), TypeScript and Tailwind CSS v4.
 
 ---
@@ -156,12 +169,14 @@ Not built yet, and presented as next steps:
 
 ```
 whatsapp/         WhatsApp channel (Meta Cloud API): webhook, Graph API client, tests
+n8n/              importable workflows (delivery and clock, premium reminders) and their README
+voice/            phone-call setup: Sarvam voice agent prompt and tool
 backend/
   app/
     core/         rule engine, ladders loader, respondent router, classifier (pure where it matters)
     services/     document extraction, drafts, redaction, voice, translation, block normaliser
     rag/          ingest, retrieve, answer, eval for coverage questions
-    conversation.py, cases.py, readiness.py, console.py, store.py, main.py
+    conversation.py, guided.py, complaints.py, handoff.py, cases.py, readiness.py, console.py, store.py, voice_agent.py, main.py
   data/
     ladders/      health-claim ladder and escalation steps (every value carries verified_by)
     checklists/   documents a health claim needs
@@ -169,8 +184,8 @@ backend/
     eval/         golden questions for the RAG eval
     bill_heads.yaml
   scripts/        seed_demo.py, reset_demo.py, verify_report.py
-  tests/          969 tests, no network (21 of them in ../whatsapp/tests)
-frontend/         Next.js demo site
+  tests/          1206 tests in total, no network (whatsapp/tests included)
+frontend/         Next.js demo site; public/deck holds the pitch deck
 PRD-PAYTM.md      the hackathon build plan
 CLAUDE.md         standing rules and module map for contributors
 ```
@@ -272,6 +287,30 @@ All of it lives in `whatsapp/`; the backend mounts it. Its settings sit in the s
 
 The webhook refuses any request without a valid `x-hub-signature-256`, and refuses everything if `WA_APP_SECRET` is unset. Run its tests with the backend's: `python -m pytest` from `backend/`.
 
+### n8n and phone calls
+
+- **n8n:** import `n8n/praman-delivery.workflow.json` and `n8n/praman-reminders.workflow.json`, then follow `n8n/README.md` (URLs, shared secret, `PUBLIC_BASE_URL`).
+- **Phone:** follow `voice/README.md` to build the agent in the Sarvam dashboard and point its tool at `POST /api/voice-agent/turn`.
+
+---
+
+## Deploying a live demo
+
+Frontend on Vercel, backend on Render, MongoDB on Atlas.
+
+1. **MongoDB Atlas:** create a free cluster, allow `0.0.0.0/0` under Network Access, copy the `mongodb+srv://` string.
+2. **Render (Web Service):**
+   - Root Directory `backend`; Runtime Python 3.
+   - Build Command `pip install -r requirements.txt && python -m app.rag.ingest` (the index is git-ignored, so it is rebuilt on each build).
+   - Start Command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`; Health Check Path `/health`.
+   - Environment variables: those in `backend/.env.example` that you use, plus `PYTHON_VERSION=3.11.9` and `RAG_EMBEDDINGS=hashing` (MiniLM is too heavy for a 512 MB instance).
+3. **Seed the demo cases:** run `python scripts/seed_demo.py` once from `backend/` with `MONGO_URI` set to the Atlas string.
+4. **Vercel:** import the repo, Root Directory `frontend`, and set `NEXT_PUBLIC_API_BASE_URL` to the Render URL (no trailing slash). Redeploy after changing it.
+5. **Link them:** on Render set `CORS_ORIGINS` to the Vercel URL and `PUBLIC_BASE_URL` to the Render URL. Repoint the n8n callbacks, the WhatsApp webhook and the voice-agent URLs if you use them.
+6. **Keep it awake:** Render's free tier sleeps after 15 minutes idle. Point an uptime monitor (for example UptimeRobot, HTTP(s), every 5 minutes) at `https://<service>.onrender.com/health`.
+
+Render's disk is ephemeral: uploaded-document text held in memory, the page-translation cache and the policy-search cache are lost on restart. Cases, events and chat live in MongoDB and survive.
+
 ---
 
 ## Status and known limits
@@ -285,7 +324,9 @@ The webhook refuses any request without a valid `x-hub-signature-256`, and refus
   - voice replies;
   - speech-to-text on browser recordings.
 - **Photos go to Sarvam Doc AI to be read.** Her consent covers this, and the prompt says so. Text sent out is masked, but images cannot be.
-- **Some state is held in memory only:** voice notes, and photos waiting for her consent. A server restart drops them.
+- **Some state is held in memory only:** voice notes, photos waiting for her consent, the answers she gives in "find a policy", and the policy-search cache. A server restart drops them.
+- **Delivery addresses are examples.** Letters go to the address configured in n8n, not to real insurer grievance desks.
+- **Phone calls:** India's DND and calling-consent rules are not handled. Praman has no public endpoint that rings a number.
 - **No authentication.** The console and case pages are open, as a demo. They show company names, never her number or name.
 - **One example document.** The coverage-question corpus ships with one example policy wording; real insurer wordings and regulations still need adding.
 

@@ -463,13 +463,28 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
   </div>
 </section>
 
+<!-- 4c PHONE CALLS -->
+<section class="slide" id="s4c" data-title="Phone calls">
+  <div class="eyebrow rv">Not everyone types</div>
+  <h2 class="rv" style="--i:1">She can just <em>call.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="cards4">
+      <div class="card rv" style="--i:2"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></div><h3>A voice agent holds the call</h3><p>It greets her, listens, speaks her language and handles interruptions. It says it is an AI.</p></div>
+      <div class="card rv" style="--i:3"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></div><h3>Praman answers every turn</h3><p>The same conversation as the chat and WhatsApp: find a policy, check my policy, complaint.</p></div>
+      <div class="card rv" style="--i:4"><div class="ico pine"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></div><h3>Same person, same case</h3><p>Her number is her case. A policy she sent on WhatsApp is the one she is asked about on the phone.</p></div>
+      <div class="card rv" style="--i:5"><div class="ico amber"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></div><h3>Made to be heard</h3><p>Short replies, no links, no lists, no page numbers. Only that a call happened is recorded, never what was said.</p></div>
+    </div>
+    <div class="banner rv" style="--i:7"><span>Praman never rings a number on its own. <b style="color:#8fe0c4">She calls.</b></span><span class="badge pine" style="font-size:24px">no public endpoint can ring a stranger</span></div>
+  </div>
+</section>
+
 <!-- 5 ARCHITECTURE -->
 <section class="slide" id="s5" data-title="How it works">
   <div class="eyebrow rv">How it works</div>
   <h2 class="rv" style="--i:1">One process. <em>Adapters at the edge.</em></h2>
   <div class="body">
     <div class="arch rv" style="--i:2">
-      <div class="col"><div class="box" data-n="0"><b>Customer</b>WhatsApp, web chat, voice. 11 languages.</div></div>
+      <div class="col"><div class="box" data-n="0"><b>Customer</b>WhatsApp, web chat, phone call. 11 languages.</div></div>
       <div class="arrow" data-a="0">›</div>
       <div class="col"><div class="box" data-n="1"><b>Conversation</b>Consent before reading. Delete everything. Checklist.</div></div>
       <div class="arrow" data-a="1">›</div>
@@ -555,6 +570,21 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
         <p class="note">Computed by the pure engine in Python, not by a model. Cap and amounts are from the labelled example policy and bill. Rule and bill-head table are <b>UNVERIFIED</b> and badged.</p>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- 6b PAPERS AND SPLIT -->
+<section class="slide" id="s6b" data-title="Papers checked, bill split">
+  <div class="eyebrow rv">Before the insurer's query</div>
+  <h2 class="rv" style="--i:1">Catch the mismatch, <em>then split the bill.</em></h2>
+  <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0">
+    <div class="cards4">
+      <div class="card rv" style="--i:2"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6"/></svg></div><h3>Names and dates</h3><p>Patient against insured names. Admission inside the policy period. Discharge after admission.</p></div>
+      <div class="card rv" style="--i:3"><div class="ico pine"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/></svg></div><h3>Bill adds up</h3><p>Bill total against its own lines, and items insurers usually do not pay, flagged before filing.</p></div>
+      <div class="card rv" style="--i:4"><div class="ico amber"><svg viewBox="0 0 24 24"><path d="M3 18V8M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="1.6"/></svg></div><h3>Who pays what</h3><p>Bill minus unpaid items, room-cap cut, co-payment, anything above the sum insured: the insurer's share, and hers.</p></div>
+      <div class="card rv" style="--i:5"><div class="ico pine"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><h3>Only trusted reads</h3><p>A field below the confidence gate is asked, never used. Nothing is split if the admission is outside the policy.</p></div>
+    </div>
+    <div class="banner rv" style="--i:7"><span>All arithmetic is in the pure engine. The answer says <b style="color:#8fe0c4">"not an approval."</b></span><span class="badge" style="font-size:24px">non-payable list: Not yet verified</span></div>
   </div>
 </section>
 
@@ -714,6 +744,7 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
     <div class="con">
       <div class="rv left" style="--i:2">
         <div class="head"><div class="lab">COMPLAINTS · EXAMPLE CASE</div><div class="h"><b id="c13a">0</b> waiting for a person.</div><span class="badge" style="font-size:18px">registered when the chat could not settle it</span></div>
+        <p class="note" style="margin-top:14px">"View brief" on every case: one English screen for the agent with the problem, her words, Praman's answers, the papers and the next step. No phone number, no file names.</p>
         <div class="counters" style="margin-top:22px">
           <div class="ctr"><b>2</b>tabs: Cases and Complaints</div>
           <div class="ctr"><b>0</b>sent to the insurer</div>
@@ -768,13 +799,13 @@ body.overview #bar,body.overview #count,body.overview #brand{display:none}
   <h2 class="rv" style="--i:1">Built, tested, <em>and honest about the rest.</em></h2>
   <div class="body" style="flex-direction:column;align-items:stretch;justify-content:center;gap:0;margin-top:20px">
     <div class="stats">
-      <div class="stat rv" style="--i:2"><b data-count="1161">0</b><span>backend tests, all passing, none touching the network</span></div>
+      <div class="stat rv" style="--i:2"><b data-count="1206">0</b><span>backend tests, all passing, none touching the network</span></div>
       <div class="stat rv" style="--i:3"><b data-count="7">0</b><span>claim rules, each with blocked, clear and missing-fact tests</span></div>
       <div class="stat rv" style="--i:4"><b data-count="11">0</b><span>languages across the site, voice in and out</span></div>
       <div class="stat rv" style="--i:5"><b data-count="3">0</b><span>verdicts: file, do not file yet, file with a known deduction</span></div>
     </div>
     <div class="nx">
-      <div class="built rv left" style="--i:6"><h3>Built</h3><ul><li>Readiness engine, router, checklist, drafts</li><li>Three start options, including find a policy for parents</li><li>Letters delivered and followed up through n8n, with consent</li><li>Premium reminders by email, only when asked</li><li>Coverage Q&amp;A with citations, voice, 11 languages, a complaints console</li></ul></div>
+      <div class="built rv left" style="--i:6"><h3>Built</h3><ul><li>Readiness engine, router, checklist, drafts</li><li>Three start options on web, WhatsApp and phone</li><li>Paper checks and a bill split, before filing</li><li>Letters delivered and followed up through n8n, with consent</li><li>Premium reminders by email, only when asked</li><li>Coverage Q&amp;A with citations, voice, 11 languages, a complaints console</li></ul></div>
       <div class="next rv right" style="--i:7"><h3>Next, not claimed</h3><ul><li>Lending "fair offer" ruleset: same engine, one YAML</li><li>Motor ruleset and claim-deadline rules</li><li>Real insurer delivery addresses: today's adapters are examples</li><li>Hand-checking every <b>UNVERIFIED</b> value against its source</li></ul></div>
     </div>
   </div>
