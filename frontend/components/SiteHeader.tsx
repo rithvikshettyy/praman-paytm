@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { LANGUAGES, useSession } from "@/lib/session";
 
 function Seal() {
@@ -74,6 +75,7 @@ export function SiteHeader() {
             })}
           </ul>
           </nav>
+          <WhatsAppButton compact />
           {/* The whole site follows this choice (translated by Sarvam); the chat replies in it too. */}
           <label className="sr-only" htmlFor="site-language">
             Language

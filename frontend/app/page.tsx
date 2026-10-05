@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { useSession } from "@/lib/session";
 
 export default function Home() {
@@ -41,6 +42,12 @@ export default function Home() {
         <h1 className="text-[2.6rem] font-bold leading-[1.05] tracking-tight text-ink sm:text-6xl">
           Stop avoidable claim rejections before they happen.
         </h1>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <WhatsAppButton />
+          <button type="button" onClick={() => openChat()} className="rounded-md border border-line bg-white px-5 py-3 font-medium text-pine hover:border-pine">
+            Chat here on the site
+          </button>
+        </div>
       </section>
 
       <section aria-label="Services" className="grid gap-4 sm:grid-cols-3">
